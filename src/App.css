@@ -1,0 +1,180 @@
+/* === Global Styles === */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #16213e 100%);
+  color: #ffffff;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Light theme overrides */
+body.light-theme {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%);
+  color: #1e293b;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* === App Layout === */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px;
+  background: transparent;
+}
+
+/* === Header === */
+.app-header {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+body.light-theme .app-header {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.app-title h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: linear-gradient(45deg, #00d4ff, #5b9bd5, #ffffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: all 0.3s ease;
+}
+
+body.light-theme .app-title h1 {
+  background: linear-gradient(45deg, #0891b2, #2563eb, #1e293b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  transition: color 0.3s ease;
+}
+
+body.light-theme .subtitle {
+  color: rgba(30, 41, 59, 0.7);
+}
+
+/* === User Info === */
+.user-info {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  text-align: right;
+}
+
+.user-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phone-display {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  transition: color 0.3s ease;
+}
+
+body.light-theme .phone-display {
+  color: rgba(30, 41, 59, 0.8);
+}
+
+/* === Button === */
+.logout-btn {
+  background: rgba(239, 68, 68, 0.8);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logout-btn:hover {
+  background: rgba(220, 38, 38, 0.9);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+body.light-theme .logout-btn {
+  background: rgba(239, 68, 68, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme .logout-btn:hover {
+  background: rgba(220, 38, 38, 1);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+}
+
+/* === Main Content === */
+.main-content {
+  flex: 1;
+  padding: 0;
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .user-info {
+    justify-content: center;
+  }
+
+  .app-title h1 {
+    font-size: 1.5rem;
+  }
+
+  .phone-display {
+    font-size: 0.9rem;
+  }
+}
