@@ -40,6 +40,15 @@ body.light-theme .shake-dashboard {
   transition: all 0.3s ease;
 }
 
+/* Actions in the top-right of stats card */
+.stats-card-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.stats-card { position: relative; }
+
 body.light-theme .stats-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
   backdrop-filter: blur(25px);

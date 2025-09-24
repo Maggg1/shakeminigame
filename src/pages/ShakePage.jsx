@@ -14,7 +14,6 @@ export default function ShakePage() {
   const [isShaking, setIsShaking] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(0);
   const [lastClaimed, setLastClaimed] = useState(null);
-  const [motionEnabled, setMotionEnabled] = useState(false);
   const lastAccel = useRef({ x: null, y: null, z: null });
 
   // On mount, consume any recent claim result saved by the claim flow
@@ -55,7 +54,7 @@ export default function ShakePage() {
         // Attach Firebase ID token
         let token = null;
         try { const a = getAuth(); if (a.currentUser) token = await a.currentUser.getIdToken(); } catch(e) { token = null; }
-        const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+  const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
         // Add a cache-busting timestamp to avoid stale responses
         const res = await fetch(`${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`, { headers, credentials: 'include' });
         if (res.ok) {
@@ -65,6 +64,8 @@ export default function ShakePage() {
         }
       } catch (e) { }
     };
+    // expose fetchPoints to window for header button and events
+    window.__shakeFetchPoints = fetchPoints;
     fetchPoints();
   }, [email]);
 
@@ -137,18 +138,20 @@ export default function ShakePage() {
       }
     };
 
+    // Try to attach device motion listener automatically on mount.
+    // Note: on iOS, requestPermission may require a user gesture and can fail silently.
     if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
-      // iOS 13+ requires permission
-      // don't auto-request on mount; expose a button to the user to request permission
-      // note: some browsers require a user gesture to call requestPermission
-      // so we only attempt if motionEnabled becomes true
-      if (motionEnabled) {
+      try {
         window.DeviceMotionEvent.requestPermission().then((resp) => {
           if (resp === 'granted') window.addEventListener('devicemotion', handleMotion);
-        }).catch(() => {});
+        }).catch(() => {
+          // permission denied or unavailable
+        });
+      } catch (e) {
+        // calling requestPermission may throw on some browsers without user gesture
       }
     } else if (window.DeviceMotionEvent) {
-      if (motionEnabled) window.addEventListener('devicemotion', handleMotion);
+      try { window.addEventListener('devicemotion', handleMotion); } catch (e) {}
     }
 
     return () => {
@@ -233,37 +236,7 @@ export default function ShakePage() {
     }
   };
 
-  // helper: try to enable motion on user gesture (iOS requires user gesture)
-  const enableMotion = async () => {
-    try {
-      // set flag then request permission in the motion effect
-      setMotionEnabled(true);
-      if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
-        const resp = await window.DeviceMotionEvent.requestPermission();
-        if (resp === 'granted') {
-          window.addEventListener('devicemotion', (ev) => {
-            const a = ev.accelerationIncludingGravity || ev.acceleration || { x:0,y:0,z:0 };
-            const { x, y, z } = a;
-            if (lastAccel.current.x === null) {
-              lastAccel.current = { x, y, z };
-              return;
-            }
-            const dx = Math.abs(x - lastAccel.current.x || 0);
-            const dy = Math.abs(y - lastAccel.current.y || 0);
-            const dz = Math.abs(z - lastAccel.current.z || 0);
-            lastAccel.current = { x, y, z };
-            const magnitude = Math.sqrt(dx*dx + dy*dy + dz*dz);
-            if (magnitude > SHAKE_THRESHOLD && availablePoints > 0 && !isShaking) triggerClaim();
-          });
-        }
-      } else if (window.DeviceMotionEvent) {
-        // on some browsers permission isn't required; just attach
-        window.addEventListener('devicemotion', handleMotion);
-      }
-    } catch (e) {
-      console.warn('Could not enable device motion', e);
-    }
-  };
+  // no enableMotion helper — motion is auto-requested on mount
 
   return (
     <div className="shake-dashboard">
@@ -272,6 +245,9 @@ export default function ShakePage() {
         <header className="shake-page-header">
           <button className="shake-back-btn" onClick={() => navigate('/')}>← Back</button>
           <h2>📱 Shake</h2>
+          <div style={{ justifySelf: 'end' }}>
+            <button className="refresh-btn" onClick={() => { if (window.__shakeFetchPoints) { window.__shakeFetchPoints(); } }}>Refresh</button>
+          </div>
         </header>
 
         <p className="shake-page-subtitle">Shake your device to claim available points.</p>
@@ -285,10 +261,7 @@ export default function ShakePage() {
           <button className="shake-btn" onClick={triggerClaim} disabled={isShaking || availablePoints === 0}>Claim Now</button>
         </div>
 
-        <div style={{ marginTop: 8, textAlign: 'center' }}>
-          <button className="refresh-btn" onClick={() => { enableMotion(); }} style={{ marginRight: 8 }}>Enable Motion</button>
-          <button className="refresh-btn" onClick={() => { (async ()=>{ try { const res = await fetch(`${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`, { credentials: 'include' }); if (res.ok) { const d = await res.json(); setAvailablePoints(d.availablePoints ?? d.available ?? d.unclaimed ?? d.points ?? 0); } } catch(e){} })(); }}>Refresh</button>
-        </div>
+        
 
         {lastClaimed !== null && <p style={{ marginTop: 12 }}>Last claimed: {lastClaimed} pts</p>}
         </div>

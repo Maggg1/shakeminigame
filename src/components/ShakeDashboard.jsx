@@ -457,7 +457,7 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           </div>
         )}
         <div className="manual-refresh">
-          <button className="refresh-btn" onClick={() => { setStopPolling(false); fetchUserPoints(); }}>Refresh now</button>
+          <button className="refresh-btn" onClick={() => { setStopPolling(false); fetchUserPoints(); }}>Refresh</button>
         </div>
       </div>
 
