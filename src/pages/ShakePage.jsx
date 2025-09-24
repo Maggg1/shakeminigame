@@ -4,6 +4,7 @@ import { API } from '../config/api';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { getAuth } from 'firebase/auth';
+import { PointsSystem } from '../utils/pointsSystem';
 
 const SHAKE_THRESHOLD = 15; // Acceleration threshold
 
@@ -13,6 +14,7 @@ export default function ShakePage() {
   const [isShaking, setIsShaking] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(0);
   const [lastClaimed, setLastClaimed] = useState(null);
+  const [motionEnabled, setMotionEnabled] = useState(false);
   const lastAccel = useRef({ x: null, y: null, z: null });
 
   // On mount, consume any recent claim result saved by the claim flow
@@ -137,11 +139,16 @@ export default function ShakePage() {
 
     if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
       // iOS 13+ requires permission
-      window.DeviceMotionEvent.requestPermission().then((resp) => {
-        if (resp === 'granted') window.addEventListener('devicemotion', handleMotion);
-      }).catch(() => {});
+      // don't auto-request on mount; expose a button to the user to request permission
+      // note: some browsers require a user gesture to call requestPermission
+      // so we only attempt if motionEnabled becomes true
+      if (motionEnabled) {
+        window.DeviceMotionEvent.requestPermission().then((resp) => {
+          if (resp === 'granted') window.addEventListener('devicemotion', handleMotion);
+        }).catch(() => {});
+      }
     } else if (window.DeviceMotionEvent) {
-      window.addEventListener('devicemotion', handleMotion);
+      if (motionEnabled) window.addEventListener('devicemotion', handleMotion);
     }
 
     return () => {
@@ -168,18 +175,20 @@ export default function ShakePage() {
         setAvailablePoints(data.availablePoints || 0);
         // Persist the claim result so other pages/components can react
         try {
-          localStorage.setItem('lastClaimResult', JSON.stringify({
+          const resultObj = {
             email,
             pointsClaimed: data.pointsClaimed || 0,
             availablePoints: data.availablePoints || 0,
             newTotalPoints: data.newTotalPoints || null,
+            raw: data,
             timestamp: Date.now()
-          }));
+          };
+          localStorage.setItem('lastClaimResult', JSON.stringify(resultObj));
         } catch (e) {}
 
         // Notify other components (e.g., dashboard) to refresh their data
         try {
-          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email } }));
+          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: data } }));
         } catch (e) {}
 
         // Show a quick reward popup similar to dashboard
@@ -196,10 +205,63 @@ export default function ShakePage() {
           alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n📊 Total: ${data.newTotalPoints ?? '–' } points`);
         } catch (e) {}
       }
+      else {
+        // Backend returned non-OK — fallback to local PointsSystem to avoid losing points
+        try {
+          if (email) {
+            const ps = new PointsSystem(email);
+            const localClaim = ps.claimPoints();
+            const resultObj = {
+              email,
+              pointsClaimed: localClaim.pointsClaimed || 0,
+              availablePoints: ps.availablePoints || 0,
+              newTotalPoints: ps.totalPoints || null,
+              raw: { fallback: true },
+              timestamp: Date.now()
+            };
+            localStorage.setItem('lastClaimResult', JSON.stringify(resultObj));
+            window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: resultObj } }));
+            setLastClaimed(localClaim.pointsClaimed || 0);
+            setAvailablePoints(ps.availablePoints || 0);
+          }
+        } catch (e) {}
+      }
     } catch (e) {
       console.error('claim failed', e);
     } finally {
       setIsShaking(false);
+    }
+  };
+
+  // helper: try to enable motion on user gesture (iOS requires user gesture)
+  const enableMotion = async () => {
+    try {
+      // set flag then request permission in the motion effect
+      setMotionEnabled(true);
+      if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+        const resp = await window.DeviceMotionEvent.requestPermission();
+        if (resp === 'granted') {
+          window.addEventListener('devicemotion', (ev) => {
+            const a = ev.accelerationIncludingGravity || ev.acceleration || { x:0,y:0,z:0 };
+            const { x, y, z } = a;
+            if (lastAccel.current.x === null) {
+              lastAccel.current = { x, y, z };
+              return;
+            }
+            const dx = Math.abs(x - lastAccel.current.x || 0);
+            const dy = Math.abs(y - lastAccel.current.y || 0);
+            const dz = Math.abs(z - lastAccel.current.z || 0);
+            lastAccel.current = { x, y, z };
+            const magnitude = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            if (magnitude > SHAKE_THRESHOLD && availablePoints > 0 && !isShaking) triggerClaim();
+          });
+        }
+      } else if (window.DeviceMotionEvent) {
+        // on some browsers permission isn't required; just attach
+        window.addEventListener('devicemotion', handleMotion);
+      }
+    } catch (e) {
+      console.warn('Could not enable device motion', e);
     }
   };
 
@@ -214,13 +276,18 @@ export default function ShakePage() {
 
         <p className="shake-page-subtitle">Shake your device to claim available points.</p>
 
-        <div className="interactive-phone">
+        <div className="interactive-phone" onClick={() => { if (!isShaking) triggerClaim(); }}>
           <div className="phone-icon-large">📱</div>
           <div className="tap-hint">{isShaking ? 'Claiming...' : (availablePoints > 0 ? `Ready: ${availablePoints} pts` : 'No points available')}</div>
         </div>
 
         <div className="shake-actions">
           <button className="shake-btn" onClick={triggerClaim} disabled={isShaking || availablePoints === 0}>Claim Now</button>
+        </div>
+
+        <div style={{ marginTop: 8, textAlign: 'center' }}>
+          <button className="refresh-btn" onClick={() => { enableMotion(); }} style={{ marginRight: 8 }}>Enable Motion</button>
+          <button className="refresh-btn" onClick={() => { (async ()=>{ try { const res = await fetch(`${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`, { credentials: 'include' }); if (res.ok) { const d = await res.json(); setAvailablePoints(d.availablePoints ?? d.available ?? d.unclaimed ?? d.points ?? 0); } } catch(e){} })(); }}>Refresh</button>
         </div>
 
         {lastClaimed !== null && <p style={{ marginTop: 12 }}>Last claimed: {lastClaimed} pts</p>}

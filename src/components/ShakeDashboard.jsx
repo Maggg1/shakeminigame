@@ -19,6 +19,7 @@ export const ShakeDashboard = ({ phoneNumber }) => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [lastFetchStatus, setLastFetchStatus] = useState(null);
   const [lastFetchRaw, setLastFetchRaw] = useState(null);
+  const [recentActivity, setRecentActivity] = useState([]);
   const [claimAmount, setClaimAmount] = useState('all');
   const [helpOpen, setHelpOpen] = useState(false);
   const [stopPolling, setStopPolling] = useState(false);
@@ -205,6 +206,11 @@ export const ShakeDashboard = ({ phoneNumber }) => {
 
       setAvailablePoints(Number(available) || 0);
       setTotalPoints(Number(total) || 0);
+      // Extract recent activity if present
+      try {
+        const actions = data.user && Array.isArray(data.user.actions) ? data.user.actions.slice(0, 20) : (data.actions && Array.isArray(data.actions) ? data.actions.slice(0,20) : []);
+        if (actions && actions.length) setRecentActivity(actions);
+      } catch (e) {}
       setLastUpdated(new Date());
     } catch (error) {
       console.error('[ShakeDashboard] Error fetching points:', error);
@@ -232,6 +238,20 @@ export const ShakeDashboard = ({ phoneNumber }) => {
         if (!detailEmail || detailEmail === userIdentifier) {
           setStopPolling(false);
           fetchUserPoints();
+          // If event contains result data (claim), add to recentActivity for immediate visibility
+          try {
+            const result = ev && ev.detail && ev.detail.result;
+            if (result) {
+              const claimEntry = {
+                id: `claim-${Date.now()}`,
+                type: 'claim',
+                points: result.pointsClaimed || 0,
+                timestamp: new Date().toISOString(),
+                details: result
+              };
+              setRecentActivity(prev => [claimEntry].concat(prev || []).slice(0, 20));
+            }
+          } catch(e) {}
         }
       } catch (e) {}
     };
@@ -486,10 +506,29 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           </div>
         </div>
 
-        <div className="activity-placeholder">
-          <p>🔄 Activity data will be loaded from admin backend...</p>
-          <p>Check the <a href={ADMIN_API_BASE} target="_blank" rel="noopener noreferrer">Admin Dashboard</a> to manage points.</p>
-        </div>
+          <div className="activity-placeholder">
+            {recentActivity && recentActivity.length > 0 ? (
+              <div className="history-list">
+                {recentActivity.map((a, idx) => (
+                  <div className="history-item" key={a.id || idx}>
+                    <div className="history-info">
+                      <div className="shake-number">{a.points ?? a.delta ?? ''} pts</div>
+                      <div className="shake-time">{new Date(a.timestamp || a.time || Date.now()).toLocaleString()}</div>
+                    </div>
+                    <div className="history-reward">
+                      <div className="reward-amount">{a.type || a.action || 'action'}</div>
+                      <div className="trade-details">{a.details ? (a.details.pair || a.details.content || JSON.stringify(a.details)) : (a.reason || '')}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <p>🔄 Activity data will be loaded from admin backend...</p>
+                <p>Check the <a href={ADMIN_API_BASE} target="_blank" rel="noopener noreferrer">Admin Dashboard</a> to manage points.</p>
+              </>
+            )}
+          </div>
       </div>
 
       {typeof document !== 'undefined' ? ReactDOM.createPortal(
