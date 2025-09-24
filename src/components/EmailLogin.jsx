@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './EmailLogin.css';
-import { sendVerificationCode, verifyCode, signInWithEmail } from '../services/auth';
+import { sendVerificationCode, verifyCode, signInWithEmail, signInWithGoogle, handleRedirectResult } from '../services/auth';
 
 /**
  * Email login component with verification step
@@ -37,12 +37,23 @@ export const EmailLogin = ({ onLoginSuccess }) => {
   useEffect(() => {
     (async () => {
       try {
+        // Process email-link completion
         const res = await signInWithEmail();
         if (res && res.success) {
           onLoginSuccess(res.user.email);
+          return;
         }
       } catch (e) {
         // ignore — user will complete via email link
+      }
+      try {
+        // Process OAuth redirect results (Google redirect fallback)
+        const r = await handleRedirectResult();
+        if (r && r.success) {
+          onLoginSuccess(r.user.email);
+        }
+      } catch (err) {
+        // ignore
       }
     })();
   }, []);
@@ -285,6 +296,28 @@ export const EmailLogin = ({ onLoginSuccess }) => {
                 </>
               )}
             </button>
+
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <button type="button" className="google-btn" onClick={async () => {
+                setIsLoading(true);
+                setError('');
+                try {
+                  const res = await signInWithGoogle();
+                  if (res && res.success) {
+                    onLoginSuccess(res.user.email);
+                  } else {
+                    setError(res.message || res.error || 'Google sign-in failed');
+                  }
+                } catch (e) {
+                  console.error('Google sign-in error', e);
+                  setError('Google sign-in failed');
+                } finally {
+                  setIsLoading(false);
+                }
+              }}>
+                Sign in with Google
+              </button>
+            </div>
 
             <div className="form-footer">
               <p className="privacy-text">

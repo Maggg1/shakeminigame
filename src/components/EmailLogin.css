@@ -662,3 +662,17 @@ body.light-theme .demo-hint p:first-child {
     min-height: auto;
   }
 }
+
+.google-btn {
+  width: 100%;
+  padding: 12px 16px;
+  margin-top: 8px;
+  background: #ffffff;
+  color: #202124;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.08);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.google-btn:hover { transform: translateY(-2px); }

@@ -40,14 +40,6 @@ body.light-theme .shake-dashboard {
   transition: all 0.3s ease;
 }
 
-.stats-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 1px 0 rgba(255, 255, 255, 0.15);
-}
-
 body.light-theme .stats-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
   backdrop-filter: blur(25px);
@@ -359,6 +351,64 @@ body.light-theme .shake-section {
   flex-direction: column;
   align-items: center;
   gap: 20px;
+}
+
+/* Shake page sizing: make inner content match dashboard/card widths */
+.shake-page {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.shake-page-inner {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* Symmetric header: left = back button, center = title, right = actions (empty by default) */
+.shake-page-header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.shake-page-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  justify-self: center;
+}
+
+.shake-page-subtitle {
+  margin: 8px 0 18px 0;
+  text-align: center;
+  color: rgba(255,255,255,0.85);
+}
+
+/* Center the interactive phone widget and remove reliance on inline style */
+.interactive-phone {
+  margin: 24px auto;
+}
+
+/* Button area under the phone */
+.shake-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Make the back button sit on the left column */
+.shake-back-btn {
+  justify-self: start;
+}
+
+@media (max-width: 480px) {
+  .shake-page-inner { padding: 12px; }
+  .shake-page-header h2 { font-size: 1.2rem; }
+  .interactive-phone { width: min(180px, 48vw); height: min(180px, 48vw); }
 }
 
 .phone-icon {

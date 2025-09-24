@@ -34,29 +34,28 @@ export class PointsSystem {
     localStorage.setItem(this.storageKey, JSON.stringify(data));
   }
 
-  // Fixed reward ladder
   getRewardLadder() {
     return [
-      { points: 1, reward: "RM1 Credit", type: "credit", value: 1 },
-      { points: 10, reward: "RM5 Voucher", type: "voucher", value: 5 },
-      { points: 25, reward: "RM15 Voucher", type: "voucher", value: 15 },
-      { 
-        points: 50, 
-        reward: "RM40 Voucher OR Digital Badge", 
-        type: "choice", 
+      { points: 1, reward: 'RM1 Credit', type: 'credit', value: 1 },
+      { points: 10, reward: 'RM5 Voucher', type: 'voucher', value: 5 },
+      { points: 25, reward: 'RM15 Voucher', type: 'voucher', value: 15 },
+      {
+        points: 50,
+        reward: 'RM40 Voucher OR Digital Badge',
+        type: 'choice',
         choices: [
-          { name: "RM40 Voucher", type: "voucher", value: 40 },
-          { name: "Digital Badge", type: "badge", value: "exclusive" }
+          { name: 'RM40 Voucher', type: 'voucher', value: 40 },
+          { name: 'Digital Badge', type: 'badge', value: 'exclusive' }
         ]
       },
-      { points: 100, reward: "Physical Plushie", type: "physical", value: "plushie" }
+      { points: 100, reward: 'Physical Plushie', type: 'physical', value: 'plushie' }
     ];
   }
 
   // Add points from actions
   addPointsFromAction(actionType, details = {}) {
     let points = 0;
-    let description = "";
+    let description = '';
 
     switch (actionType) {
       case 'trade':
@@ -71,28 +70,37 @@ export class PointsSystem {
         return null;
     }
 
-    // If backend API is present, POST the action so admins can grant points
+    // If backend API is present, notify it (with token if available)
     if (API) {
-      const payload = {
-        email: this.phoneNumber,
-        action: actionType,
-        details
-      };
-
+      const payload = { email: this.phoneNumber, action: actionType, details };
       const endpoint = actionType === 'trade' ? '/trade' : '/share';
-      fetch(`${API}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(err => {
-        console.warn('Failed to notify backend of action, continuing with local add', err);
-      });
+      (async () => {
+        try {
+          let token = null;
+          try {
+            const { getAuth } = await import('firebase/auth');
+            const a = getAuth();
+            if (a.currentUser) token = await a.currentUser.getIdToken();
+          } catch (e) {
+            token = null;
+          }
+          const headers = token
+            ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+            : { 'Content-Type': 'application/json' };
+          await fetch(`${API}${endpoint}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+            credentials: 'include'
+          });
+        } catch (err) {
+          console.warn('Failed to notify backend of action, continuing with local add', err);
+        }
+      })();
     }
 
-    // Add to available points (ready to claim) locally for immediate UX
+    // Local update
     this.availablePoints += points;
-
-    // Add to action history
     const action = {
       id: Date.now(),
       type: actionType,
@@ -101,29 +109,17 @@ export class PointsSystem {
       timestamp: new Date().toISOString(),
       details: details
     };
-
     this.actionHistory.unshift(action);
-
-    // Keep only last 50 actions
-    if (this.actionHistory.length > 50) {
-      this.actionHistory = this.actionHistory.slice(0, 50);
-    }
-
+    if (this.actionHistory.length > 50) this.actionHistory = this.actionHistory.slice(0, 50);
     this.saveData();
     return action;
   }
 
-  // Claim available points (triggered by shake)
   claimPoints() {
-    if (this.availablePoints === 0) {
-      return { success: false, message: "No points to claim!" };
-    }
-
+    if (this.availablePoints === 0) return { success: false, message: 'No points to claim!' };
     const pointsToClaim = this.availablePoints;
     this.totalPoints += pointsToClaim;
     this.availablePoints = 0;
-
-    // Add to claim history
     const claim = {
       id: Date.now(),
       pointsClaimed: pointsToClaim,
@@ -131,66 +127,36 @@ export class PointsSystem {
       timestamp: new Date().toISOString(),
       time: new Date().toLocaleTimeString()
     };
-    
     this.claimHistory.unshift(claim);
-    
-    // Keep only last 20 claims
-    if (this.claimHistory.length > 20) {
-      this.claimHistory = this.claimHistory.slice(0, 20);
-    }
-
+    if (this.claimHistory.length > 20) this.claimHistory = this.claimHistory.slice(0, 20);
     this.saveData();
-    
-    return {
-      success: true,
-      pointsClaimed: pointsToClaim,
-      totalPoints: this.totalPoints,
-      claim: claim
-    };
+    return { success: true, pointsClaimed: pointsToClaim, totalPoints: this.totalPoints, claim };
   }
 
-  // Get available rewards based on current points
   getAvailableRewards() {
     const ladder = this.getRewardLadder();
     return ladder.filter(reward => this.totalPoints >= reward.points);
   }
 
-  // Get next reward to work towards
   getNextReward() {
     const ladder = this.getRewardLadder();
     return ladder.find(reward => this.totalPoints < reward.points);
   }
 
-  // Get progress to next reward
   getProgressToNextReward() {
     const nextReward = this.getNextReward();
     if (!nextReward) return { progress: 100, isMaxed: true };
-    
     const pointsNeeded = nextReward.points - this.totalPoints;
     const progress = (this.totalPoints / nextReward.points) * 100;
-    
-    return {
-      progress: Math.min(progress, 100),
-      pointsNeeded: pointsNeeded,
-      nextReward: nextReward,
-      isMaxed: false
-    };
+    return { progress: Math.min(progress, 100), pointsNeeded, nextReward, isMaxed: false };
   }
 
-  // Get recent actions (last 10)
-  getRecentActions(limit = 10) {
-    return this.actionHistory.slice(0, limit);
-  }
-
-  // Get recent claims (last 10)
   getRecentClaims(limit = 10) {
     return this.claimHistory.slice(0, limit);
   }
 
-  // Simulate some initial actions for new users
   generateInitialActions() {
     if (this.actionHistory.length === 0) {
-      // Add some sample actions over the past few days
       const actions = [
         { type: 'trade', details: { pair: 'BTC/USD', amount: 1000 } },
         { type: 'share', details: { content: 'trading results', platform: 'Twitter' } },
@@ -198,19 +164,14 @@ export class PointsSystem {
         { type: 'trade', details: { pair: 'ADA/USD', amount: 750 } },
         { type: 'share', details: { content: 'app recommendation', platform: 'Facebook' } }
       ];
-
       actions.forEach((action, index) => {
-        // Simulate actions from past days
         const pastTime = Date.now() - ((actions.length - index) * 24 * 60 * 60 * 1000);
         const actionResult = this.addPointsFromAction(action.type, action.details);
-        if (actionResult) {
-          actionResult.timestamp = new Date(pastTime).toISOString();
-        }
+        if (actionResult) actionResult.timestamp = new Date(pastTime).toISOString();
       });
     }
   }
 
-  // Reset all data (for testing)
   resetData() {
     localStorage.removeItem(this.storageKey);
     this.loadData();
