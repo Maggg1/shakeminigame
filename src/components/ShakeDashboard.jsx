@@ -454,27 +454,7 @@ export const ShakeDashboard = ({ phoneNumber }) => {
         </div>
       </div>
 
-      {/* Daily Summary (replaces Reward Ladder) */}
-      <div className="daily-summary">
-        <h3>⚡ Daily Summary</h3>
-        <div className="daily-grid">
-          <div className="coin-card">
-            <div className="coin">🪙</div>
-            <div className="coin-info">
-              <div className="coin-value">{getTodaysEarned()} pts</div>
-              <div className="coin-label">Today's Earned</div>
-            </div>
-          </div>
-
-          <div className="meter-card">
-            <div className="meter-label">Shake Power</div>
-            <div className="meter-bar">
-              <div className="meter-fill" style={{ width: `${Math.min(100, (availablePoints / Math.max(1, 10)) * 100)}%` }} />
-            </div>
-            <div className="meter-hint">{availablePoints} available • {totalPoints} total</div>
-          </div>
-        </div>
-      </div>
+      {/* Daily Summary removed per request */}
 
       <div className="shake-cta">
         <div className="shake-cta-card">
