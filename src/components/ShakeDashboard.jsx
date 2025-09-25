@@ -395,27 +395,17 @@ export const ShakeDashboard = ({ phoneNumber }) => {
       <div className="help-modal-overlay" onClick={() => setHelpOpen(false)}>
         <div className="help-modal" onClick={(e) => e.stopPropagation()}>
           <div className="help-header">
-            <h3>How To Play & Rewards</h3>
+            <h3>How To Play</h3>
             <button className="help-close" onClick={() => setHelpOpen(false)}>✕</button>
           </div>
           <div className="help-body">
-            <p>Welcome! Here's how the points and rewards work:</p>
+            <p>Shaking now redeems rewards based on your available points and admin-defined reward rules.</p>
             <ul>
-              <li>Admins add points to your account (via +1/+2 or admin dashboard).</li>
-              <li>Available points are unclaimed points you can claim by tapping or shaking.</li>
-              <li>Use the Claim button or tap the phone to convert available points into total points.</li>
+              <li>Admins manage reward definitions on the backend — the app will show and prefer those when available.</li>
+              <li>Available points are added by admins. Shake or tap to redeem a reward that fits your available points.</li>
+              <li>If the server returns a redemption and updated balances, the app will use those authoritative values. Otherwise the client chooses the best-fit reward and decrements points locally for immediate feedback.</li>
             </ul>
-            <h4>Reward Table</h4>
-            <div className="help-rewards">
-              {(rewardDefs && rewardDefs.length > 0 ? rewardDefs : rewardLadder).map((r, i) => (
-                <div className="help-reward-item" key={r.id || r.tier || i}>
-                  <div className="help-reward-points">{r.pointsRequired ?? r.points ?? r.cost ?? r.pointsRequired ?? '—'} pts</div>
-                  <div className="help-reward-name">{r.title || r.name || r.label || r.reward}</div>
-                  <div className="help-reward-unlocked">{totalPoints >= (r.pointsRequired ?? r.points ?? r.cost ?? 0) ? '✅ Unlocked' : '🔒 Locked'}</div>
-                </div>
-              ))}
-            </div>
-            <p className="help-note">Tip: Claim smaller amounts to get more frequent rewards.</p>
+            <p className="help-note">Tip: Ensure your admin has defined rewards on the backend to control what users can redeem.</p>
           </div>
         </div>
       </div>
