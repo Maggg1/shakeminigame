@@ -48,7 +48,7 @@ function App() {
         <header className="app-header">
           <div className="header-content">
             <div className="app-title">
-              <h1>📱 Shake Mini Game</h1>
+              <h1>📱 Shake Rewards</h1>
               <p className="subtitle">Shake to earn coins daily!</p>
             </div>
             <div className="user-info">

@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { getAuth } from 'firebase/auth';
 import { PointsSystem } from '../utils/pointsSystem';
 import fetchAuth from '../utils/fetchAuth';
+import gameApi from '../services/game-api';
+import RewardModal from '../components/RewardModal';
 
 const SHAKE_THRESHOLD = 15; // Acceleration threshold
 
@@ -15,8 +17,10 @@ export default function ShakePage() {
   const [isShaking, setIsShaking] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(0);
   const [lastClaimed, setLastClaimed] = useState(null);
+  const [rewardDefs, setRewardDefs] = useState([]);
+  const [lastRedemption, setLastRedemption] = useState(null);
+  const [showRewardModal, setShowRewardModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, title: '', body: '' });
-  const [debug, setDebug] = useState({ show: false, lastRequest: null, lastResponse: null, lastError: null });
   const lastAccel = useRef({ x: null, y: null, z: null });
 
   // On mount, consume any recent claim result saved by the claim flow
@@ -52,14 +56,9 @@ export default function ShakePage() {
         if (!email) return;
         // Use centralized fetchAuth which handles token attachment and retry
         const url = `${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`;
-        const tokenPresent = Boolean(localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token'));
-        setDebug(d => ({ ...d, lastRequest: { url, method: 'GET', hasBody: false, hasAuth: tokenPresent }, lastResponse: null, lastError: null }));
         const res = await fetchAuth(url, { method: 'GET' }, 7000);
-        if (res) {
-          setDebug(d => ({ ...d, lastResponse: { status: res.status, ok: res.ok, bodyText: (res.bodyText || null), json: res.json || null } }));
-        }
         if (res && res.ok) {
-          const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
+          const data = res.json ?? res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
           const available = data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0;
           setAvailablePoints(Number(available) || 0);
         }
@@ -68,6 +67,15 @@ export default function ShakePage() {
     // expose fetchPoints to window for header button and events
     window.__shakeFetchPoints = fetchPoints;
     fetchPoints();
+    // load reward definitions
+    (async () => {
+      try {
+        const defs = await gameApi.getRewardDefinitions();
+        setRewardDefs(defs && defs.rewards ? defs.rewards : (defs || []));
+      } catch (e) {
+        console.warn('Failed loading reward defs', e);
+      }
+    })();
   }, [email]);
 
   // Listen for claims/updates from other pages so we refresh immediately
@@ -99,13 +107,12 @@ export default function ShakePage() {
           // Otherwise re-fetch from server (with cache-bust) to get latest available points
           (async () => {
             try {
-              const url = `${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`;
-              const tokenPresent = Boolean(localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token'));
-              setDebug(d => ({ ...d, lastRequest: { url, method: 'GET', hasBody: false, hasAuth: tokenPresent }, lastResponse: null, lastError: null }));
-              const res = await fetchAuth(url, { method: 'GET' }, 7000);
-              if (res) setDebug(d => ({ ...d, lastResponse: { status: res.status, ok: res.ok, bodyText: (res.bodyText || null), json: res.json || null } }));
-              if (res && res.ok) {
-                const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
+              let token = null;
+              try { const a = getAuth(); if (a.currentUser) token = await a.currentUser.getIdToken(); } catch(e) { token = null; }
+              const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+              const res = await fetch(`${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`, { headers, credentials: 'include' });
+              if (res.ok) {
+                const data = await res.json();
                 setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
               }
             } catch (e) {}
@@ -185,110 +192,72 @@ export default function ShakePage() {
   const triggerClaim = async () => {
     setIsShaking(true);
     try {
-      const body = { email, pointsToClaim: 1 };
-      const url = `${API}/shake`;
-      const tokenPresent = Boolean(localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token'));
-      setDebug(d => ({ ...d, lastRequest: { url, method: 'POST', hasBody: true, body, hasAuth: tokenPresent }, lastResponse: null, lastError: null }));
+      // Call server shake endpoint via gameApi which attaches Authorization
+      const data = await gameApi.shake(email);
 
-      // Only claim a single point per shake. Use fetchAuth which will attach token and retry on 401.
-      const res = await fetchAuth(url, {
-        method: 'POST',
-        body: JSON.stringify(body),
-        headers: { 'Content-Type': 'application/json' }
-      }, 7000);
+      // Update UI state from server response
+        // Prefer server-provided redemption info
+        if (data && data.redemption && data.redemption.ok) {
+          const r = data.redemption;
+          // use cost as the claimed points where available
+          setLastClaimed(r.cost != null ? r.cost : (data.pointsClaimed || 0));
+          setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
+        } else {
+          setLastClaimed(data.pointsClaimed || 0);
+          setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
+        }
 
-      if (res) setDebug(d => ({ ...d, lastResponse: { status: res.status, ok: res.ok, bodyText: (res.bodyText || null), json: res.json || null } }));
+      // Persist the claim result so other pages/components can react
+      try {
+        const resultObj = {
+          email,
+          pointsClaimed: data.pointsClaimed || 0,
+          availablePoints: data.availablePoints || data.available || data.unclaimed || data.points || 0,
+          newTotalPoints: data.newTotalPoints || data.points || null,
+          raw: data,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('lastClaimResult', JSON.stringify(resultObj));
+      } catch (e) {}
 
-      if (res && res.ok) {
-        const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
-        try { console.debug('[ShakePage] claim response', data); } catch(e){}
+      // Notify other components
+      try { window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: data, popupShown: true } })); } catch(e) {}
 
-        // Normalize various backend shapes. Some APIs return `pointsClaimed`;
-        // others return `points` as the user's total. We handle both.
-        const ptsClaimed = data.pointsClaimed ?? data.claimedPoints ?? data.claimed ?? 0;
-        const available = data.availablePoints ?? data.available ?? data.unclaimed ?? 0;
-        const total = data.newTotalPoints ?? data.totalPoints ?? data.points ?? null;
-        const rewardsUnlocked = data.rewardsUnlocked ?? data.rewards ?? null;
-        const message = data.message ?? null;
+      // Show redeemed reward details if present
+        if (data.redemption) {
+          const r = data.redemption;
+          setLastRedemption(r);
+          if (r.ok) setShowRewardModal(true);
+        } else {
+          setLastRedemption(null);
+        }
 
-        setLastClaimed(ptsClaimed || 0);
-        // Update available only if server supplied a value
-        if (typeof available === 'number') setAvailablePoints(available);
+      // show toast with reward info when available — prefer redemption fields
+      try {
+        if (data.redemption && data.redemption.ok) {
+          const r = data.redemption;
+          const title = (r.rewardDef && (r.rewardDef.title || r.rewardDef.name)) || (r.claim && r.claim.title) || '';
+          const cost = r.cost != null ? r.cost : (r.rewardDef && (r.rewardDef.cost ?? r.rewardDef.points)) || 0;
+          const newTotal = r.newPoints != null ? r.newPoints : (data.newTotalPoints ?? data.points ?? '–');
+          showToast(`🎉 Redeemed`, `${title} • Tier: ${r.tier || (r.rewardDef && r.rewardDef.tier) || '–'} • Cost: ${cost} • Total: ${newTotal}`, 5000);
+        } else {
+          const pointsClaimed = data.pointsClaimed || 0;
+          const rewardLabel = data.reward || data.rewardName || '';
+          const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
+          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Total: ${data.newTotalPoints ?? data.points ?? '–' } pts`);
+        }
+      } catch (e) {}
 
-        // Persist the claim result so other pages/components can react
-        try {
-          const resultObj = {
-            email,
-            pointsClaimed: ptsClaimed || 0,
-            availablePoints: Number(available) || 0,
-            newTotalPoints: total,
-            rewardsUnlocked: rewardsUnlocked ?? null,
-            message: message ?? null,
-            raw: data,
-            timestamp: Date.now()
-          };
-          localStorage.setItem('lastClaimResult', JSON.stringify(resultObj));
-        } catch (e) {}
-
-        // Notify other components (e.g., dashboard) to refresh their data
-        try {
-          const resultForEvent = { ...(data || {}), pointsClaimed: ptsClaimed, availablePoints: available, newTotalPoints: total };
-          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: resultForEvent, popupShown: true } }));
-        } catch (e) {}
-
-        // Show appropriate toast: prefer server `message` when it indicates nothing to claim,
-        // otherwise surface unlocked rewards or claimed points.
-        try {
-          if (message && /no unclaimed/i.test(message)) {
-            showToast('No unclaimed points', message);
-          } else if (rewardsUnlocked && Array.isArray(rewardsUnlocked) && rewardsUnlocked.length) {
-            showToast('🎉 Rewards Unlocked!', `${rewardsUnlocked.join(', ')} — Total: ${total ?? '–'} pts`);
-          } else {
-            const ptsLabel = ptsClaimed || 0;
-            showToast('🎉 Points Claimed!', `+${ptsLabel} pts — Total: ${total ?? '–'} pts`);
-          }
-        } catch (e) {}
-      }
-      else {
-        // Backend returned non-OK — fallback to local PointsSystem to avoid losing points
-        try {
-          try { console.warn('[ShakePage] claim failed response', res && (res.bodyText || res.statusText || res.status)); } catch(e){}
-          if (email) {
-            const ps = new PointsSystem(email);
-            // Claim one point locally as a fallback
-            const localClaim = ps.claimPoints(1);
-            const resultObj = {
-              email,
-              pointsClaimed: localClaim.pointsClaimed || 0,
-              availablePoints: ps.availablePoints || 0,
-              newTotalPoints: ps.totalPoints || null,
-              raw: { fallback: true },
-              timestamp: Date.now()
-            };
-            localStorage.setItem('lastClaimResult', JSON.stringify(resultObj));
-            window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: resultObj } }));
-            setLastClaimed(localClaim.pointsClaimed || 0);
-            setAvailablePoints(ps.availablePoints || 0);
-            // show fallback toast using any available backend-like fields
-            try {
-              const pointsClaimed = resultObj.pointsClaimed || 0;
-              const rewardLabel = resultObj.reward || resultObj.rewardName || (resultObj.rewards && resultObj.rewards[0] && (resultObj.rewards[0].name || resultObj.rewards[0].label)) || resultObj.prize || '';
-              const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-              showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Remaining: ${resultObj.availablePoints || 0} pts`);
-            } catch (e) {}
-          }
-          if (res && res.status) {
-            setDebug(d => ({ ...d, lastError: { status: res.status, statusText: res.statusText || '', bodyText: res.bodyText || null } }));
-          }
-        } catch (e) {}
-      }
-    } catch (e) {
-      console.error('claim failed', e);
-      setDebug(d => ({ ...d, lastError: { message: (e && e.message) || String(e) } }));
+    } catch (err) {
+      console.error('claim failed (server) — no local fallback. Error:', err);
+      try { showToast('❌ Claim Failed', 'Could not contact server to claim points. Please try again later.'); } catch (e) {}
     } finally {
+      // Always refresh server state (if available) and stop the claiming state
+      try { if (window.__shakeFetchPoints) window.__shakeFetchPoints(); } catch (e) {}
       setIsShaking(false);
     }
   };
+  
 
   // no enableMotion helper — motion is auto-requested on mount
 
@@ -301,7 +270,6 @@ export default function ShakePage() {
           <h2>📱 Shake</h2>
           <div style={{ justifySelf: 'end' }}>
             <button className="refresh-btn" onClick={() => { if (window.__shakeFetchPoints) { window.__shakeFetchPoints(); } }}>Refresh</button>
-            <button className="refresh-btn" style={{ marginLeft: 8 }} onClick={() => setDebug(d => ({ ...d, show: !d.show }))}>{debug.show ? 'Hide debug' : 'Show debug'}</button>
           </div>
         </header>
 
@@ -316,25 +284,30 @@ export default function ShakePage() {
           <button className="shake-btn" onClick={triggerClaim} disabled={isShaking || availablePoints === 0}>Claim Now</button>
         </div>
 
+        {/* Reward definitions preview */}
+        {rewardDefs && rewardDefs.length > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <h3>Rewards</h3>
+            <ul>
+              {rewardDefs.map((d) => (
+                <li key={d.id || d._id || d.tier}>{d.title || d.name || d.label} — Tier: {d.tier} — Cost: {d.cost ?? d.points ?? '–'}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Last redemption details */}
+        {lastRedemption && (
+          <div style={{ marginTop: 12, padding: 10, border: '1px solid #ddd', borderRadius: 6 }}>
+            <strong>Redeemed:</strong> {(lastRedemption.rewardDef && (lastRedemption.rewardDef.title || lastRedemption.rewardDef.name)) || (lastRedemption.claim && lastRedemption.claim.title) || '—'} (Tier: {lastRedemption.tier || '—'}, Cost: {lastRedemption.cost ?? (lastRedemption.rewardDef && (lastRedemption.rewardDef.pointsRequired ?? lastRedemption.rewardDef.cost)) ?? '–'})
+          </div>
+        )}
+
+        <RewardModal open={showRewardModal} onClose={() => setShowRewardModal(false)} redemption={lastRedemption} />
+
         
 
         {lastClaimed !== null && <p style={{ marginTop: 12 }}>Last claimed: {lastClaimed} pts</p>}
-        {debug.show && (
-          <div style={{ marginTop: 12, padding: 8, background: 'rgba(0,0,0,0.05)', borderRadius: 6, fontSize: 12, maxWidth: 680 }}>
-            <div style={{ fontWeight: 'bold', marginBottom: 6 }}>Debug</div>
-            <div><strong>Last Request:</strong> {debug.lastRequest ? `${debug.lastRequest.method} ${debug.lastRequest.url.split('?')[0]}${debug.lastRequest.hasBody ? ' (body)' : ''} — auth:${debug.lastRequest.hasAuth ? 'yes' : 'no'}` : '—'}</div>
-            <div style={{ marginTop: 6 }}><strong>Last Response:</strong> {debug.lastResponse ? `status:${debug.lastResponse.status} ok:${String(debug.lastResponse.ok)}` : '—'}</div>
-            {debug.lastResponse && debug.lastResponse.bodyText && (
-              <pre style={{ whiteSpace: 'pre-wrap', marginTop: 6, background: '#fff', padding: 8, borderRadius: 4, maxHeight: 200, overflow: 'auto' }}>{debug.lastResponse.bodyText}</pre>
-            )}
-            {debug.lastResponse && debug.lastResponse.json && (
-              <pre style={{ whiteSpace: 'pre-wrap', marginTop: 6, background: '#fff', padding: 8, borderRadius: 4, maxHeight: 200, overflow: 'auto' }}>{JSON.stringify(debug.lastResponse.json, null, 2)}</pre>
-            )}
-            {debug.lastError && (
-              <div style={{ marginTop: 6, color: 'crimson' }}><strong>Error:</strong> {debug.lastError.message || `${debug.lastError.status || ''} ${debug.lastError.statusText || ''}`}</div>
-            )}
-          </div>
-        )}
         </div>
       </div>
     </div>

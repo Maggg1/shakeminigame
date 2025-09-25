@@ -8,6 +8,8 @@ import { useRef } from 'react';
 import { getIdToken } from '../services/auth';
 import fetchAuth from '../utils/fetchAuth';
 import { getAuth } from 'firebase/auth';
+import gameApi from '../services/game-api';
+import RewardModal from './RewardModal';
 
 export const ShakeDashboard = ({ phoneNumber }) => {
   const auth = useAuth();
@@ -21,6 +23,9 @@ export const ShakeDashboard = ({ phoneNumber }) => {
   const [lastFetchStatus, setLastFetchStatus] = useState(null);
   const [lastFetchRaw, setLastFetchRaw] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [rewardDefs, setRewardDefs] = useState([]);
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [lastRedemption, setLastRedemption] = useState(null);
   const [claimAmount, setClaimAmount] = useState('all');
   const [helpOpen, setHelpOpen] = useState(false);
   const [stopPolling, setStopPolling] = useState(false);
@@ -218,6 +223,13 @@ export const ShakeDashboard = ({ phoneNumber }) => {
     // Reset polling state when user changes
     setStopPolling(false);
     fetchUserPoints();
+    // load reward definitions for help modal and display
+    (async () => {
+      try {
+        const defs = await gameApi.getRewardDefinitions();
+        setRewardDefs(defs && defs.rewards ? defs.rewards : (defs || []));
+      } catch (e) { /* ignore */ }
+    })();
     const interval = setInterval(() => {
       if (!stopPolling) fetchUserPoints();
     }, 5000);
@@ -323,26 +335,10 @@ export const ShakeDashboard = ({ phoneNumber }) => {
         ? pointsToClaimOverride
         : (claimAmount === 'all' ? availablePoints : Number(claimAmount));
 
-      const url = `${ADMIN_API_BASE.replace(/\/$/, '')}/shake`;
-      const body = { email: userIdentifier, pointsToClaim };
-
-      let result;
-        try {
-        // Prefer using Firebase current user's ID token for the POST
-        let postToken = null;
-        try {
-          const authInst = getAuth();
-          const user = authInst.currentUser;
-          if (user) postToken = await user.getIdToken(/* forceRefresh= */ false);
-        } catch (e) { postToken = null; }
-        if (!postToken) postToken = localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token');
-        const postHeaders = postToken ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${postToken}` } : { 'Content-Type': 'application/json' };
-        result = await fetchWithTimeout(url, {
-          method: 'POST',
-          headers: postHeaders,
-          body: JSON.stringify(body),
-          credentials: 'include'
-        }, 7000);
+      // Use gameApi.shake which attaches Authorization
+      let data = null;
+      try {
+        data = await gameApi.shake(userIdentifier, { pointsToClaim });
       } catch (networkErr) {
         console.error('[ShakeDashboard] Network error during claim:', networkErr);
         alert('❌ Network error claiming points. Try again later.');
@@ -350,23 +346,39 @@ export const ShakeDashboard = ({ phoneNumber }) => {
         return;
       }
 
-      if (!result.ok) {
-        console.error('[ShakeDashboard] Claim failed:', result.status, result.bodyText);
-        alert(`❌ Failed to claim points: ${result.status} ${result.statusText}`);
-        setIsShaking(false);
-        return;
+      // Do NOT trust old local fields. Use redemption to display claim details and then refresh totals from server.
+      try {
+        // If redemption provided, persist and notify other tabs/components
+        if (data && data.redemption) {
+          const r = data.redemption;
+          const title = (r.rewardDef && r.rewardDef.title) || (r.claim && r.claim.title) || '';
+          const tier = r.tier || '';
+          const cost = r.cost != null ? r.cost : null;
+          const lastClaim = {
+            email: userIdentifier,
+            redemption: r,
+            pointsClaimed: r.cost != null ? r.cost : (data.pointsClaimed || 0),
+            availablePoints: data.availablePoints || data.available || 0,
+            newTotalPoints: data.newTotalPoints || data.points || null,
+            timestamp: Date.now(),
+            raw: data
+          };
+          try { localStorage.setItem('lastClaimResult', JSON.stringify(lastClaim)); } catch (e) {}
+          try { window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email: userIdentifier, result: data, popupShown: true } })); } catch (e) {}
+
+          // Show the modal inside the app using redemption info
+          setTimeout(() => {
+            setIsShaking(false);
+            setLastRedemption(r);
+            setShowRewardModal(true);
+          }, 200);
+        }
+      } catch (e) {
+        console.warn('[ShakeDashboard] Error handling redemption display', e);
+      } finally {
+        // Refresh authoritative state from server so totals match backend
+        try { await fetchUserPoints(); } catch (e) { /* ignore */ }
       }
-
-      const data = result.json ?? (result.bodyText ? JSON.parse(result.bodyText) : {});
-      setTotalPoints(data.newTotalPoints || totalPoints + (data.pointsClaimed || 0));
-      setAvailablePoints(data.availablePoints || 0);
-      setLastUpdated(new Date());
-
-      setTimeout(() => {
-        setIsShaking(false);
-        const reward = mapReward(data.pointsClaimed);
-        alert(`🎉 Points Claimed!\n💰 +${data.pointsClaimed} points\n📦 Reward: ${reward}\n📊 Total: ${data.newTotalPoints} points`);
-      }, 1500);
     } catch (error) {
       console.error('Error claiming points:', error);
       setIsShaking(false);
@@ -395,11 +407,11 @@ export const ShakeDashboard = ({ phoneNumber }) => {
             </ul>
             <h4>Reward Table</h4>
             <div className="help-rewards">
-              {rewardLadder.map((r, i) => (
-                <div className="help-reward-item" key={i}>
-                  <div className="help-reward-points">{r.points} pts</div>
-                  <div className="help-reward-name">{r.reward}</div>
-                  <div className="help-reward-unlocked">{totalPoints >= r.points ? '✅ Unlocked' : '🔒 Locked'}</div>
+              {(rewardDefs && rewardDefs.length > 0 ? rewardDefs : rewardLadder).map((r, i) => (
+                <div className="help-reward-item" key={r.id || r.tier || i}>
+                  <div className="help-reward-points">{r.pointsRequired ?? r.points ?? r.cost ?? r.pointsRequired ?? '—'} pts</div>
+                  <div className="help-reward-name">{r.title || r.name || r.label || r.reward}</div>
+                  <div className="help-reward-unlocked">{totalPoints >= (r.pointsRequired ?? r.points ?? r.cost ?? 0) ? '✅ Unlocked' : '🔒 Locked'}</div>
                 </div>
               ))}
             </div>
@@ -534,6 +546,7 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           {helpModalMarkup}
         </>
       )}
+      <RewardModal open={showRewardModal} onClose={() => setShowRewardModal(false)} redemption={lastRedemption} />
     </div>
   );
 };
