@@ -168,24 +168,53 @@ export default function ShakePage() {
       }
     };
 
-    // Try to attach device motion listener automatically on mount.
-    // Note: on iOS, requestPermission may require a user gesture and can fail silently.
-    if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+    // Modern iOS requires a user gesture to call DeviceMotionEvent.requestPermission().
+    // We avoid a visible button by requesting permission on the first touch/click anywhere on the page.
+    // This keeps the UX unobtrusive while still satisfying the browser requirement.
+    const tryEnableMotionViaGesture = () => {
       try {
-        window.DeviceMotionEvent.requestPermission().then((resp) => {
-          if (resp === 'granted') window.addEventListener('devicemotion', handleMotion);
-        }).catch(() => {
-          // permission denied or unavailable
-        });
+        if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+          window.DeviceMotionEvent.requestPermission().then(resp => {
+            if (resp === 'granted') {
+              try { window.addEventListener('devicemotion', handleMotion); } catch (e) {}
+            }
+          }).catch(() => {
+            // user denied or permission unavailable
+          });
+        }
       } catch (e) {
-        // calling requestPermission may throw on some browsers without user gesture
+        // some browsers may throw when calling requestPermission without a gesture
       }
+    };
+
+    // If the browser requires permission (iOS), listen once for the first user gesture.
+    let gestureListenerAdded = false;
+    const gestureHandler = () => {
+      tryEnableMotionViaGesture();
+      // remove the gesture listener after first use
+      document.removeEventListener('touchstart', gestureHandler);
+      document.removeEventListener('click', gestureHandler);
+      gestureListenerAdded = false;
+    };
+
+    if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+      // Add one-time gesture listeners — passive to avoid blocking scrolling.
+      document.addEventListener('touchstart', gestureHandler, { passive: true });
+      document.addEventListener('click', gestureHandler, { passive: true });
+      gestureListenerAdded = true;
+      // Also attempt to request right away in case permission was already granted by the OS/settings.
+      tryEnableMotionViaGesture();
     } else if (window.DeviceMotionEvent) {
+      // No permission API — attach directly.
       try { window.addEventListener('devicemotion', handleMotion); } catch (e) {}
     }
 
     return () => {
-      if (window.DeviceMotionEvent) window.removeEventListener('devicemotion', handleMotion);
+      try { window.removeEventListener('devicemotion', handleMotion); } catch (e) {}
+      if (gestureListenerAdded) {
+        try { document.removeEventListener('touchstart', gestureHandler); } catch (e) {}
+        try { document.removeEventListener('click', gestureHandler); } catch (e) {}
+      }
     };
   }, [availablePoints, isShaking]);
 
