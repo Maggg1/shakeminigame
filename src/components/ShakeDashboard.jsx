@@ -570,18 +570,27 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           <div className="activity-placeholder">
             {recentActivity && recentActivity.length > 0 ? (
               <div className="history-list">
-                {recentActivity.map((a, idx) => (
-                  <div className="history-item" key={a.id || idx}>
-                    <div className="history-info">
-                      <div className="shake-number">{a.reward || a.type || ''}</div>
-                      <div className="shake-time">{new Date(a.timestamp || a.time || Date.now()).toLocaleString()}</div>
+                {recentActivity.map((a, idx) => {
+                  // Prefer explicit reward title fields; fall back to redemption payload shapes
+                  const details = a.details || a.raw || null;
+                  const redemption = details && (details.redemption || details.redem || details.claim) ? (details.redemption || details.redem || details.claim) : null;
+                  const rewardDef = redemption && redemption.rewardDef ? redemption.rewardDef : null;
+                  const rewardTitle = a.reward || (rewardDef && (rewardDef.title || rewardDef.name)) || redemption && (redemption.title || redemption.name) || a.type || '';
+                  const cost = redemption && (redemption.cost ?? redemption.points ?? (rewardDef && (rewardDef.pointsRequired ?? rewardDef.cost))) || (details && (details.pointsClaimed || details.cost)) || null;
+                  const timeLabel = new Date(a.timestamp || a.time || Date.now()).toLocaleString();
+                  return (
+                    <div className="history-item" key={a.id || idx}>
+                      <div className="history-info">
+                        <div className="shake-number">{rewardTitle}</div>
+                        <div className="shake-time">{timeLabel}</div>
+                      </div>
+                      <div className="history-reward">
+                        <div className="reward-amount">{rewardTitle}</div>
+                        <div className="trade-details">{cost ? `${cost} pts` : ''}</div>
+                      </div>
                     </div>
-                    <div className="history-reward">
-                      <div className="reward-amount">{a.type || a.action || 'action'}</div>
-                      <div className="trade-details">{a.details ? (a.details.pair || a.details.content || JSON.stringify(a.details)) : (a.reason || '')}</div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <>
