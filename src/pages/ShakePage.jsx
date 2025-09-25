@@ -253,16 +253,24 @@ export default function ShakePage() {
           };
         }
 
-        // Update UI state immediately using server values when available, otherwise calculate
-        if (serverAvailable != null) {
-          setAvailablePoints(serverAvailable);
-        } else {
-          // best-effort local decrement when server doesn't tell us the new available points
-          try {
-            const remaining = Math.max(0, (availablePoints || 0) - (redemption.cost || 0));
-            setAvailablePoints(remaining);
-          } catch (e) { /* ignore */ }
+        // Decide authoritative available points for UI: prefer server if it reflects a decrement,
+        // otherwise apply a local decrement so the UI updates immediately.
+        let computedAvailable = null;
+        try {
+          const serverVal = (typeof serverAvailable !== 'undefined' && serverAvailable !== null) ? Number(serverAvailable) : null;
+          const before = Number(availablePoints || 0);
+          const localAfter = Math.max(0, before - (redemption.cost || 0));
+          if (serverVal !== null && !Number.isNaN(serverVal) && serverVal < before) {
+            // server shows a reduced balance -> trust it
+            computedAvailable = serverVal;
+          } else {
+            // server didn't reflect a decrement; use local deduction
+            computedAvailable = localAfter;
+          }
+        } catch (e) {
+          computedAvailable = Math.max(0, (availablePoints || 0) - (redemption.cost || 0));
         }
+        setAvailablePoints(computedAvailable);
 
       // Persist the claim result so other pages/components can react
       let resultObj = null;
@@ -271,7 +279,7 @@ export default function ShakePage() {
         resultObj = {
           email,
           pointsClaimed: redemption.cost || data.pointsClaimed || 0,
-          availablePoints: serverAvailable != null ? serverAvailable : Math.max(0, (availablePoints || 0) - (redemption.cost || 0)),
+          availablePoints: (typeof computedAvailable !== 'undefined' && computedAvailable !== null) ? computedAvailable : (serverAvailable != null ? serverAvailable : Math.max(0, (availablePoints || 0) - (redemption.cost || 0))),
           newTotalPoints: data.newTotalPoints || data.points || null,
           raw: data,
           redemption,
