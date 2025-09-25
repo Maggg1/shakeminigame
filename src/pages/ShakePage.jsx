@@ -230,28 +230,44 @@ export default function ShakePage() {
         const serverAvailable = data && (data.availablePoints ?? data.available ?? data.unclaimed ?? data.points);
         const pointsClaimed = (data && (data.pointsClaimed || (data.redemption && data.redemption.cost) )) || 0;
 
-        // Helper to map points to a reward tier/title
-        const mapPointsToReward = (p) => {
-          const n = Number(p) || 0;
-          if (n > 0 && n < 5) return { tier: 'small', title: 'RM3 voucher' };
-          if (n < 10) return { tier: 'minor', title: 'RM6 voucher' };
-          if (n < 20) return { tier: 'standard', title: 'RM8 credit' };
-          if (n < 30) return { tier: 'large', title: 'RM13 credit' };
-          if (n < 40) return { tier: 'premium', title: 'Keychain' };
-          if (n < 50) return { tier: 'deluxe', title: 'Plushie' };
-          return { tier: 'special', title: 'Special prize' };
+        // Helper: choose reward from server-provided rewardDefs if available; otherwise fallback to local mapping
+        const chooseReward = (points) => {
+          const n = Number(points) || 0;
+          // Try server-provided defs first
+          if (Array.isArray(rewardDefs) && rewardDefs.length > 0) {
+            // Normalize candidate rewards by cost/pointsRequired
+            const candidates = rewardDefs.map(r => {
+              const cost = r.pointsRequired ?? r.cost ?? r.points ?? r.pointsRequired ?? 0;
+              return Object.assign({}, r, { __cost: Number(cost || 0) });
+            }).filter(r => r.__cost <= n && r.__cost > 0);
+            if (candidates.length > 0) {
+              // choose the most expensive reward affordable by the claimed points
+              candidates.sort((a,b) => b.__cost - a.__cost);
+              const best = candidates[0];
+              return { tier: best.tier || best.id || best._id || 'reward', title: best.title || best.name || best.label || best.reward || '', cost: best.__cost, rewardDef: best };
+            }
+          }
+          // Fallback deterministic mapping
+          if (n > 0 && n < 5) return { tier: 'small', title: 'RM3 voucher', cost: 1 };
+          if (n < 10) return { tier: 'minor', title: 'RM6 voucher', cost: 5 };
+          if (n < 20) return { tier: 'standard', title: 'RM8 credit', cost: 10 };
+          if (n < 30) return { tier: 'large', title: 'RM13 credit', cost: 20 };
+          if (n < 40) return { tier: 'premium', title: 'Keychain', cost: 30 };
+          if (n < 50) return { tier: 'deluxe', title: 'Plushie', cost: 40 };
+          return { tier: 'special', title: 'Special prize', cost: Math.min(n, 50) };
         };
 
-        // If server returned a redemption, use it; otherwise compute one locally
+        // If server returned a redemption, use it; otherwise compute one using available rewardDefs
         let redemption = data && data.redemption ? data.redemption : null;
         if (!redemption) {
-          const p = pointsClaimed || (typeof availablePoints === 'number' ? Math.min(availablePoints, 1) : 0);
-          const r = mapPointsToReward(p);
+          // determine claimed points: prefer server pointsClaimed, else use availablePoints (user claimed all) or 0
+          const p = pointsClaimed || Number(availablePoints || 0);
+          const chosen = chooseReward(p);
           redemption = {
             ok: true,
-            cost: pointsClaimed || p,
-            tier: r.tier,
-            rewardDef: { title: r.title },
+            cost: chosen.cost || pointsClaimed || 0,
+            tier: chosen.tier,
+            rewardDef: chosen.rewardDef ? chosen.rewardDef : { title: chosen.title },
             timestamp: Date.now()
           };
         }
@@ -281,6 +297,12 @@ export default function ShakePage() {
           timestamp: Date.now()
         };
         try { localStorage.setItem('lastClaimResult', JSON.stringify(resultObj)); } catch (e) {}
+
+        // Re-fetch reward definitions from server to ensure the UI shows the admin-provided list
+        try {
+          const fresh = await gameApi.getRewardDefinitions();
+          if (fresh && fresh.rewards) setRewardDefs(fresh.rewards);
+        } catch (e) { /* ignore */ }
       } catch (e) {}
 
       // Notify other components
