@@ -16,6 +16,7 @@ export default function ShakePage() {
   const [availablePoints, setAvailablePoints] = useState(0);
   const [lastClaimed, setLastClaimed] = useState(null);
   const [toast, setToast] = useState({ visible: false, title: '', body: '' });
+  const [debug, setDebug] = useState({ show: false, lastRequest: null, lastResponse: null, lastError: null });
   const lastAccel = useRef({ x: null, y: null, z: null });
 
   // On mount, consume any recent claim result saved by the claim flow
@@ -51,9 +52,14 @@ export default function ShakePage() {
         if (!email) return;
         // Use centralized fetchAuth which handles token attachment and retry
         const url = `${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`;
+        const tokenPresent = Boolean(localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token'));
+        setDebug(d => ({ ...d, lastRequest: { url, method: 'GET', hasBody: false, hasAuth: tokenPresent }, lastResponse: null, lastError: null }));
         const res = await fetchAuth(url, { method: 'GET' }, 7000);
+        if (res) {
+          setDebug(d => ({ ...d, lastResponse: { status: res.status, ok: res.ok, bodyText: (res.bodyText || null), json: res.json || null } }));
+        }
         if (res && res.ok) {
-          const data = res.json ?? res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
+          const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
           const available = data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0;
           setAvailablePoints(Number(available) || 0);
         }
@@ -94,7 +100,10 @@ export default function ShakePage() {
           (async () => {
             try {
               const url = `${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`;
+              const tokenPresent = Boolean(localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token'));
+              setDebug(d => ({ ...d, lastRequest: { url, method: 'GET', hasBody: false, hasAuth: tokenPresent }, lastResponse: null, lastError: null }));
               const res = await fetchAuth(url, { method: 'GET' }, 7000);
+              if (res) setDebug(d => ({ ...d, lastResponse: { status: res.status, ok: res.ok, bodyText: (res.bodyText || null), json: res.json || null } }));
               if (res && res.ok) {
                 const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
                 setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
@@ -176,17 +185,26 @@ export default function ShakePage() {
   const triggerClaim = async () => {
     setIsShaking(true);
     try {
+      const body = { email, pointsToClaim: 1 };
+      const url = `${API}/shake`;
+      const tokenPresent = Boolean(localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token'));
+      setDebug(d => ({ ...d, lastRequest: { url, method: 'POST', hasBody: true, body, hasAuth: tokenPresent }, lastResponse: null, lastError: null }));
+
       // Only claim a single point per shake. Use fetchAuth which will attach token and retry on 401.
-      const res = await fetchAuth(`${API}/shake`, {
+      const res = await fetchAuth(url, {
         method: 'POST',
-        body: JSON.stringify({ email, pointsToClaim: 1 }),
+        body: JSON.stringify(body),
         headers: { 'Content-Type': 'application/json' }
       }, 7000);
+
+      if (res) setDebug(d => ({ ...d, lastResponse: { status: res.status, ok: res.ok, bodyText: (res.bodyText || null), json: res.json || null } }));
+
       if (res && res.ok) {
         const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
         try { console.debug('[ShakePage] claim response', data); } catch(e){}
         setLastClaimed(data.pointsClaimed || 0);
         setAvailablePoints(data.availablePoints || 0);
+
         // Persist the claim result so other pages/components can react
         try {
           const resultObj = {
@@ -242,10 +260,14 @@ export default function ShakePage() {
               showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Remaining: ${resultObj.availablePoints || 0} pts`);
             } catch (e) {}
           }
+          if (res && res.status) {
+            setDebug(d => ({ ...d, lastError: { status: res.status, statusText: res.statusText || '', bodyText: res.bodyText || null } }));
+          }
         } catch (e) {}
       }
     } catch (e) {
       console.error('claim failed', e);
+      setDebug(d => ({ ...d, lastError: { message: (e && e.message) || String(e) } }));
     } finally {
       setIsShaking(false);
     }
@@ -262,6 +284,7 @@ export default function ShakePage() {
           <h2>📱 Shake</h2>
           <div style={{ justifySelf: 'end' }}>
             <button className="refresh-btn" onClick={() => { if (window.__shakeFetchPoints) { window.__shakeFetchPoints(); } }}>Refresh</button>
+            <button className="refresh-btn" style={{ marginLeft: 8 }} onClick={() => setDebug(d => ({ ...d, show: !d.show }))}>{debug.show ? 'Hide debug' : 'Show debug'}</button>
           </div>
         </header>
 
@@ -279,6 +302,22 @@ export default function ShakePage() {
         
 
         {lastClaimed !== null && <p style={{ marginTop: 12 }}>Last claimed: {lastClaimed} pts</p>}
+        {debug.show && (
+          <div style={{ marginTop: 12, padding: 8, background: 'rgba(0,0,0,0.05)', borderRadius: 6, fontSize: 12, maxWidth: 680 }}>
+            <div style={{ fontWeight: 'bold', marginBottom: 6 }}>Debug</div>
+            <div><strong>Last Request:</strong> {debug.lastRequest ? `${debug.lastRequest.method} ${debug.lastRequest.url.split('?')[0]}${debug.lastRequest.hasBody ? ' (body)' : ''} — auth:${debug.lastRequest.hasAuth ? 'yes' : 'no'}` : '—'}</div>
+            <div style={{ marginTop: 6 }}><strong>Last Response:</strong> {debug.lastResponse ? `status:${debug.lastResponse.status} ok:${String(debug.lastResponse.ok)}` : '—'}</div>
+            {debug.lastResponse && debug.lastResponse.bodyText && (
+              <pre style={{ whiteSpace: 'pre-wrap', marginTop: 6, background: '#fff', padding: 8, borderRadius: 4, maxHeight: 200, overflow: 'auto' }}>{debug.lastResponse.bodyText}</pre>
+            )}
+            {debug.lastResponse && debug.lastResponse.json && (
+              <pre style={{ whiteSpace: 'pre-wrap', marginTop: 6, background: '#fff', padding: 8, borderRadius: 4, maxHeight: 200, overflow: 'auto' }}>{JSON.stringify(debug.lastResponse.json, null, 2)}</pre>
+            )}
+            {debug.lastError && (
+              <div style={{ marginTop: 6, color: 'crimson' }}><strong>Error:</strong> {debug.lastError.message || `${debug.lastError.status || ''} ${debug.lastError.statusText || ''}`}</div>
+            )}
+          </div>
+        )}
         </div>
       </div>
     </div>
