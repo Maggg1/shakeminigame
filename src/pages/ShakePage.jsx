@@ -14,6 +14,7 @@ export default function ShakePage() {
   const [isShaking, setIsShaking] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(0);
   const [lastClaimed, setLastClaimed] = useState(null);
+  const [toast, setToast] = useState({ visible: false, title: '', body: '' });
   const lastAccel = useRef({ x: null, y: null, z: null });
 
   // On mount, consume any recent claim result saved by the claim flow
@@ -39,7 +40,7 @@ export default function ShakePage() {
           else if (pointsClaimed < 40) reward = 'Keychain';
           else if (pointsClaimed < 50) reward = 'Plushie';
           else reward = 'Special prize';
-          alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n🔁 Remaining to claim: ${remaining} pts`);
+          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Remaining: ${remaining} pts`);
         } catch (e) {}
       }
       // Clear it so the popup doesn't repeat on subsequent mounts
@@ -96,7 +97,7 @@ export default function ShakePage() {
                 else if (pointsClaimed < 40) reward = 'Keychain';
                 else if (pointsClaimed < 50) reward = 'Plushie';
                 else reward = 'Special prize';
-                alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n🔁 Remaining to claim: ${remaining} pts`);
+                showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Remaining: ${remaining} pts`);
               } catch (e) {}
             }
             return;
@@ -136,7 +137,7 @@ export default function ShakePage() {
                   else if (pointsClaimed < 40) reward = 'Keychain';
                   else if (pointsClaimed < 50) reward = 'Plushie';
                   else reward = 'Special prize';
-                  alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n🔁 Remaining to claim: ${remaining} pts`);
+                  showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Remaining: ${remaining} pts`);
                 } catch (e) {}
               }
             }
@@ -235,7 +236,7 @@ export default function ShakePage() {
           else if (pointsClaimed < 40) reward = 'Keychain';
           else if (pointsClaimed < 50) reward = 'Plushie';
           else reward = 'Special prize';
-          alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n📊 Total: ${data.newTotalPoints ?? '–' } points`);
+          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Total: ${data.newTotalPoints ?? '–' } pts`);
         } catch (e) {}
       }
       else {
