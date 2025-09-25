@@ -210,7 +210,24 @@ export const ShakeDashboard = ({ phoneNumber }) => {
       // Extract recent activity if present
       try {
         const actions = data.user && Array.isArray(data.user.actions) ? data.user.actions.slice(0, 20) : (data.actions && Array.isArray(data.actions) ? data.actions.slice(0,20) : []);
-        if (actions && actions.length) setRecentActivity(actions);
+        if (actions && actions.length) {
+          // Normalize actions into { id, type, reward, timestamp, details }
+          const normalized = actions.map(act => {
+            const details = act || {};
+            const redemption = details.redemption || details.claim || details.redem || details.redemp || null;
+            const rewardDef = (redemption && redemption.rewardDef) || details.rewardDef || null;
+            const rewardTitle = details.reward || (rewardDef && (rewardDef.title || rewardDef.name)) || redemption && (redemption.title || redemption.name) || details.title || details.action || details.type || '';
+            const cost = (redemption && (redemption.cost ?? redemption.points)) || details.pointsClaimed || details.cost || null;
+            return {
+              id: details.id || details._id || details.claimId || `act-${Math.random().toString(36).slice(2,9)}`,
+              type: details.type || details.action || (redemption ? 'claim' : 'activity'),
+              reward: rewardTitle,
+              timestamp: details.timestamp || details.time || details.createdAt || details.ts || Date.now(),
+              details
+            };
+          }).slice(0,20);
+          setRecentActivity(normalized);
+        }
       } catch (e) {}
       setLastUpdated(new Date());
     } catch (error) {
