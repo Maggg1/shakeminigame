@@ -25,11 +25,12 @@ export default function ShakePage() {
       if (!parsed) return;
       // Only show if it matches this user and is recent (2 minutes)
       if (parsed.email === email && (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 1000)) {
-        // Update local state and show reward popup
-        setLastClaimed(parsed.pointsClaimed || 0);
-        setAvailablePoints(parsed.availablePoints || 0);
+  // Update local state and show reward popup
+  setLastClaimed(parsed.pointsClaimed || 0);
+  setAvailablePoints(parsed.availablePoints || 0);
         try {
           const pointsClaimed = parsed.pointsClaimed || 0;
+          const remaining = parsed.availablePoints || 0;
           let reward = 'No reward';
           if (pointsClaimed > 0 && pointsClaimed < 5) reward = 'RM3 voucher';
           else if (pointsClaimed < 10) reward = 'RM6 voucher';
@@ -38,7 +39,7 @@ export default function ShakePage() {
           else if (pointsClaimed < 40) reward = 'Keychain';
           else if (pointsClaimed < 50) reward = 'Plushie';
           else reward = 'Special prize';
-          alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}`);
+          alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n🔁 Remaining to claim: ${remaining} pts`);
         } catch (e) {}
       }
       // Clear it so the popup doesn't repeat on subsequent mounts
@@ -100,6 +101,7 @@ export default function ShakePage() {
                 localStorage.removeItem('lastClaimResult');
                 try {
                   const pointsClaimed = parsed.pointsClaimed || 0;
+                  const remaining = parsed.availablePoints || 0;
                   let reward = 'No reward';
                   if (pointsClaimed > 0 && pointsClaimed < 5) reward = 'RM3 voucher';
                   else if (pointsClaimed < 10) reward = 'RM6 voucher';
@@ -108,7 +110,7 @@ export default function ShakePage() {
                   else if (pointsClaimed < 40) reward = 'Keychain';
                   else if (pointsClaimed < 50) reward = 'Plushie';
                   else reward = 'Special prize';
-                  alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}`);
+                  alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n🔁 Remaining to claim: ${remaining} pts`);
                 } catch (e) {}
               }
             }
@@ -166,10 +168,11 @@ export default function ShakePage() {
       let postToken = null;
       try { const a = getAuth(); if (a.currentUser) postToken = await a.currentUser.getIdToken(); } catch(e) { postToken = null; }
       const postHeaders = postToken ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${postToken}` } : { 'Content-Type': 'application/json' };
+      // Only claim a single point per shake
       const res = await fetch(`${API}/shake`, {
         method: 'POST',
         headers: postHeaders,
-        body: JSON.stringify({ email, pointsToClaim: availablePoints }),
+        body: JSON.stringify({ email, pointsToClaim: 1 }),
         credentials: 'include'
       });
       if (res.ok) {
@@ -213,7 +216,8 @@ export default function ShakePage() {
         try {
           if (email) {
             const ps = new PointsSystem(email);
-            const localClaim = ps.claimPoints();
+            // Claim one point locally as a fallback
+            const localClaim = ps.claimPoints(1);
             const resultObj = {
               email,
               pointsClaimed: localClaim.pointsClaimed || 0,

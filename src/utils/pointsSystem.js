@@ -115,22 +115,28 @@ export class PointsSystem {
     return action;
   }
 
-  claimPoints() {
-    if (this.availablePoints === 0) return { success: false, message: 'No points to claim!' };
-    const pointsToClaim = this.availablePoints;
-    this.totalPoints += pointsToClaim;
-    this.availablePoints = 0;
+  // Claim points. By default claim a single point per call. Pass pointsToClaim to claim more.
+  claimPoints(pointsToClaim = 1) {
+    if (this.availablePoints <= 0) return { success: false, message: 'No points to claim!' };
+    // Ensure we don't claim more than available
+    const toClaim = Math.max(0, Math.min(Number(pointsToClaim) || 1, this.availablePoints));
+    if (toClaim === 0) return { success: false, message: 'No points to claim!' };
+
+    this.totalPoints += toClaim;
+    this.availablePoints -= toClaim;
+
     const claim = {
       id: Date.now(),
-      pointsClaimed: pointsToClaim,
+      pointsClaimed: toClaim,
       totalAfterClaim: this.totalPoints,
+      remainingAvailable: this.availablePoints,
       timestamp: new Date().toISOString(),
       time: new Date().toLocaleTimeString()
     };
     this.claimHistory.unshift(claim);
     if (this.claimHistory.length > 20) this.claimHistory = this.claimHistory.slice(0, 20);
     this.saveData();
-    return { success: true, pointsClaimed: pointsToClaim, totalPoints: this.totalPoints, claim };
+    return { success: true, pointsClaimed: toClaim, totalPoints: this.totalPoints, claim };
   }
 
   getAvailableRewards() {
