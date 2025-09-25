@@ -367,7 +367,10 @@ export default function ShakePage() {
             <h3>Rewards</h3>
             <ul>
               {rewardDefs.map((d) => (
-                <li key={d.id || d._id || d.tier}>{d.title || d.name || d.label} — Tier: {d.tier} — Cost: {d.cost ?? d.points ?? '–'}</li>
+                <li key={d.id || d._id || d.tier}>
+                  <strong>{d.title || d.name || d.label}</strong>
+                  {d.description && <div className="help-reward-desc">{d.description}</div>}
+                </li>
               ))}
             </ul>
           </div>

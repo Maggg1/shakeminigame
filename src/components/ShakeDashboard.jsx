@@ -252,10 +252,11 @@ export const ShakeDashboard = ({ phoneNumber }) => {
 
             // If event contains result data (claim), add to recentActivity for immediate visibility
             try {
+              const rewardTitle = (result.redemption && (result.redemption.rewardDef && (result.redemption.rewardDef.title || result.redemption.rewardDef.name))) || result.reward || result.rewardName || '';
               const claimEntry = {
                 id: `claim-${Date.now()}`,
                 type: 'claim',
-                points: result.pointsClaimed || (result.redemption && result.redemption.cost) || 0,
+                reward: rewardTitle || (result.redemption && result.redemption.tier) || '',
                 timestamp: new Date().toISOString(),
                 details: result
               };
@@ -417,6 +418,20 @@ export const ShakeDashboard = ({ phoneNumber }) => {
               <li>Available points are added by admins. Shake or tap to redeem a reward that fits your available points.</li>
               <li>If the server returns a redemption and updated balances, the app will use those authoritative values. Otherwise the client chooses the best-fit reward and decrements points locally for immediate feedback.</li>
             </ul>
+            <h4>Rewards available</h4>
+            <div className="help-rewards">
+              {rewardDefs && rewardDefs.length > 0 ? (
+                rewardDefs.map((r, i) => (
+                  <div className="help-reward-item" key={r.id || r.tier || r._id || i}>
+                    <div className="help-reward-points">{r.pointsRequired ?? r.cost ?? r.points ?? '—'} pts</div>
+                    <div className="help-reward-name">{r.title || r.name || r.label || r.reward}</div>
+                    {r.description && <div className="help-reward-desc">{r.description}</div>}
+                  </div>
+                ))
+              ) : (
+                <div>No rewards configured by admin.</div>
+              )}
+            </div>
             <p className="help-note">Tip: Ensure your admin has defined rewards on the backend to control what users can redeem.</p>
           </div>
         </div>
@@ -497,7 +512,7 @@ export const ShakeDashboard = ({ phoneNumber }) => {
                 {recentActivity.map((a, idx) => (
                   <div className="history-item" key={a.id || idx}>
                     <div className="history-info">
-                      <div className="shake-number">{a.points ?? a.delta ?? ''} pts</div>
+                      <div className="shake-number">{a.reward || a.type || ''}</div>
                       <div className="shake-time">{new Date(a.timestamp || a.time || Date.now()).toLocaleString()}</div>
                     </div>
                     <div className="history-reward">
