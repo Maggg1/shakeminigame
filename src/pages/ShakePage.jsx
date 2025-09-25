@@ -74,9 +74,35 @@ export default function ShakePage() {
   useEffect(() => {
     const onPointsUpdated = (ev) => {
       try {
-        const detailEmail = ev && ev.detail && ev.detail.email;
+        const detail = ev && ev.detail;
+        const detailEmail = detail && detail.email;
+
         if (!detailEmail || detailEmail === email) {
-          // Re-fetch from server (with cache-bust)
+          // If the event carries a result payload (same-tab dispatch), use it to update state.
+          if (detail && detail.result) {
+            const data = detail.result;
+            setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
+
+            // Only show a popup here if the origin didn't already show one
+            if (!detail.popupShown) {
+              try {
+                const pointsClaimed = data.pointsClaimed || 0;
+                const remaining = data.availablePoints || 0;
+                let reward = 'No reward';
+                if (pointsClaimed > 0 && pointsClaimed < 5) reward = 'RM3 voucher';
+                else if (pointsClaimed < 10) reward = 'RM6 voucher';
+                else if (pointsClaimed < 20) reward = 'RM8 credit';
+                else if (pointsClaimed < 30) reward = 'RM13 credit';
+                else if (pointsClaimed < 40) reward = 'Keychain';
+                else if (pointsClaimed < 50) reward = 'Plushie';
+                else reward = 'Special prize';
+                alert(`🎉 Points Claimed!\n💰 +${pointsClaimed} points\n📦 Reward: ${reward}\n🔁 Remaining to claim: ${remaining} pts`);
+              } catch (e) {}
+            }
+            return;
+          }
+
+          // Otherwise re-fetch from server (with cache-bust) to get latest available points
           (async () => {
             try {
               let token = null;
@@ -90,7 +116,7 @@ export default function ShakePage() {
             } catch (e) {}
           })();
 
-          // If there's a lastClaimResult stored, show it
+          // If there's a lastClaimResult stored, show it (this covers cross-tab/storage events)
           try {
             const raw = localStorage.getItem('lastClaimResult');
             if (raw) {
@@ -193,8 +219,9 @@ export default function ShakePage() {
         } catch (e) {}
 
         // Notify other components (e.g., dashboard) to refresh their data
+        // Mark the event as already shown in this tab so listeners here don't re-show the popup
         try {
-          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: data } }));
+          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: data, popupShown: true } }));
         } catch (e) {}
 
         // Show a quick reward popup similar to dashboard
