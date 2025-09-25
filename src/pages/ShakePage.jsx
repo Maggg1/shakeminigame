@@ -373,38 +373,11 @@ export default function ShakePage() {
           </div>
         </header>
 
-        <p className="shake-page-subtitle">Shake your device to claim available points.</p>
+        <p className="shake-page-subtitle">Shake or Tap to claim your available points.</p>
 
-        {/* Stats card: Available Points, Ready to claim, Total Points, Lifetime earned, Next Reward, Last updated, Refresh */}
-        <div className="shake-stats" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 120, textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{availablePoints}</div>
-            <div style={{ fontSize: 12, color: '#555' }}>Available Points</div>
-          </div>
-
-          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 140 }}>
-            <div style={{ fontSize: 14, color: '#111', fontWeight: 600 }}>{availablePoints > 0 ? 'Ready to claim' : 'No points'}</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{availablePoints > 0 ? `${availablePoints} pts` : '–'}</div>
-          </div>
-
-          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 120, textAlign: 'center' }}>
-            <div style={{ fontSize: 12, color: '#555' }}>Total Points</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{totalPoints}</div>
-          </div>
-
-          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 140, textAlign: 'center' }}>
-            <div style={{ fontSize: 12, color: '#555' }}>Lifetime earned</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{lifetimeEarned}</div>
-          </div>
-
-          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{ fontSize: 12, color: '#555' }}>Next Reward</div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{nextRewardPoints ? `${nextRewardPoints} pts` : '–'}</div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>Last updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : '–'}</div>
-            <div style={{ marginTop: 8 }}>
-              <button className="refresh-btn" onClick={() => { if (window.__shakeFetchPoints) window.__shakeFetchPoints(); }}>Refresh</button>
-            </div>
-          </div>
+        <div style={{ textAlign: 'center', margin: '18px 0' }}>
+          <div style={{ fontSize: 48, fontWeight: 800 }}>{availablePoints}</div>
+          <div style={{ marginTop: 6, fontSize: 16, color: '#444' }}>{availablePoints > 0 ? 'Ready to claim' : 'No points available'}</div>
         </div>
 
         <div className="interactive-phone" onClick={() => { if (!isShaking) triggerClaim(); }}>
