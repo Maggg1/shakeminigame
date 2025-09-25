@@ -202,16 +202,28 @@ export default function ShakePage() {
       if (res && res.ok) {
         const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
         try { console.debug('[ShakePage] claim response', data); } catch(e){}
-        setLastClaimed(data.pointsClaimed || 0);
-        setAvailablePoints(data.availablePoints || 0);
+
+        // Normalize various backend shapes. Some APIs return `pointsClaimed`;
+        // others return `points` as the user's total. We handle both.
+        const ptsClaimed = data.pointsClaimed ?? data.claimedPoints ?? data.claimed ?? 0;
+        const available = data.availablePoints ?? data.available ?? data.unclaimed ?? 0;
+        const total = data.newTotalPoints ?? data.totalPoints ?? data.points ?? null;
+        const rewardsUnlocked = data.rewardsUnlocked ?? data.rewards ?? null;
+        const message = data.message ?? null;
+
+        setLastClaimed(ptsClaimed || 0);
+        // Update available only if server supplied a value
+        if (typeof available === 'number') setAvailablePoints(available);
 
         // Persist the claim result so other pages/components can react
         try {
           const resultObj = {
             email,
-            pointsClaimed: data.pointsClaimed || 0,
-            availablePoints: data.availablePoints || 0,
-            newTotalPoints: data.newTotalPoints || null,
+            pointsClaimed: ptsClaimed || 0,
+            availablePoints: Number(available) || 0,
+            newTotalPoints: total,
+            rewardsUnlocked: rewardsUnlocked ?? null,
+            message: message ?? null,
             raw: data,
             timestamp: Date.now()
           };
@@ -219,17 +231,22 @@ export default function ShakePage() {
         } catch (e) {}
 
         // Notify other components (e.g., dashboard) to refresh their data
-        // Mark the event as already shown in this tab so listeners here don't re-show the popup
         try {
-          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: data, popupShown: true } }));
+          const resultForEvent = { ...(data || {}), pointsClaimed: ptsClaimed, availablePoints: available, newTotalPoints: total };
+          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: resultForEvent, popupShown: true } }));
         } catch (e) {}
 
-        // Show a quick reward popup using backend-provided reward info when available
+        // Show appropriate toast: prefer server `message` when it indicates nothing to claim,
+        // otherwise surface unlocked rewards or claimed points.
         try {
-          const pointsClaimed = data.pointsClaimed || 0;
-          const rewardLabel = data.reward || data.rewardName || (data.rewards && data.rewards[0] && (data.rewards[0].name || data.rewards[0].label)) || data.prize || (data.raw && (data.raw.reward || data.raw.prize || data.raw.name)) || '';
-          const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Total: ${data.newTotalPoints ?? '–' } pts`);
+          if (message && /no unclaimed/i.test(message)) {
+            showToast('No unclaimed points', message);
+          } else if (rewardsUnlocked && Array.isArray(rewardsUnlocked) && rewardsUnlocked.length) {
+            showToast('🎉 Rewards Unlocked!', `${rewardsUnlocked.join(', ')} — Total: ${total ?? '–'} pts`);
+          } else {
+            const ptsLabel = ptsClaimed || 0;
+            showToast('🎉 Points Claimed!', `+${ptsLabel} pts — Total: ${total ?? '–'} pts`);
+          }
         } catch (e) {}
       }
       else {
