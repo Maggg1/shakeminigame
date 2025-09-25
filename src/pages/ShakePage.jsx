@@ -93,12 +93,10 @@ export default function ShakePage() {
           // Otherwise re-fetch from server (with cache-bust) to get latest available points
           (async () => {
             try {
-              let token = null;
-              try { const a = getAuth(); if (a.currentUser) token = await a.currentUser.getIdToken(); } catch(e) { token = null; }
-              const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-              const res = await fetch(`${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`, { headers, credentials: 'include' });
-              if (res.ok) {
-                const data = await res.json();
+              const url = `${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`;
+              const res = await fetchAuth(url, { method: 'GET' }, 7000);
+              if (res && res.ok) {
+                const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
                 setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
               }
             } catch (e) {}
@@ -184,8 +182,8 @@ export default function ShakePage() {
         body: JSON.stringify({ email, pointsToClaim: 1 }),
         headers: { 'Content-Type': 'application/json' }
       }, 7000);
-      if (res.ok) {
-        const data = await res.json();
+      if (res && res.ok) {
+        const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
         setLastClaimed(data.pointsClaimed || 0);
         setAvailablePoints(data.availablePoints || 0);
         // Persist the claim result so other pages/components can react
