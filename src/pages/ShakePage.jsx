@@ -16,10 +16,14 @@ export default function ShakePage() {
   const navigate = useNavigate();
   const [isShaking, setIsShaking] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(0);
+  const [totalPoints, setTotalPoints] = useState(0);
   const [rewardDefs, setRewardDefs] = useState([]);
   const [lastRedemption, setLastRedemption] = useState(null);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, title: '', body: '' });
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [lifetimeEarned, setLifetimeEarned] = useState(0);
+  const [nextRewardPoints, setNextRewardPoints] = useState(null);
   const lastAccel = useRef({ x: null, y: null, z: null });
 
   // On mount, consume any recent claim result saved by the claim flow
@@ -53,9 +57,14 @@ export default function ShakePage() {
         const url = `${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`;
         const res = await fetchAuth(url, { method: 'GET' }, 7000);
         if (res && res.ok) {
-          const data = res.json ?? res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
+          const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
           const available = data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0;
+          const total = data.totalPoints ?? data.total ?? data.user && data.user.totalPoints ?? 0;
+          const lifetime = (data.lifetimeEarned ?? data.totalEarned ?? (data.user && data.user.lifetimeEarned) ?? total) || 0;
           setAvailablePoints(Number(available) || 0);
+          setTotalPoints(Number(total) || 0);
+          setLifetimeEarned(Number(lifetime) || 0);
+          setLastUpdated(new Date());
         }
       } catch (e) { }
     };
@@ -72,6 +81,20 @@ export default function ShakePage() {
       }
     })();
   }, [email]);
+
+    // compute next reward points when defs or availablePoints change
+    useEffect(() => {
+      try {
+        if (!Array.isArray(rewardDefs) || rewardDefs.length === 0) {
+          setNextRewardPoints(null);
+          return;
+        }
+        const costs = rewardDefs.map(r => Number(r.pointsRequired ?? r.cost ?? r.points ?? 0)).filter(n => n > 0).sort((a,b) => a - b);
+        if (costs.length === 0) { setNextRewardPoints(null); return; }
+        const greater = costs.find(c => c > (Number(availablePoints) || 0));
+        setNextRewardPoints(greater ?? costs[0]);
+      } catch (e) { setNextRewardPoints(null); }
+    }, [rewardDefs, availablePoints]);
 
   // Listen for claims/updates from other pages so we refresh immediately
   useEffect(() => {
@@ -351,6 +374,38 @@ export default function ShakePage() {
         </header>
 
         <p className="shake-page-subtitle">Shake your device to claim available points.</p>
+
+        {/* Stats card: Available Points, Ready to claim, Total Points, Lifetime earned, Next Reward, Last updated, Refresh */}
+        <div className="shake-stats" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 120, textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{availablePoints}</div>
+            <div style={{ fontSize: 12, color: '#555' }}>Available Points</div>
+          </div>
+
+          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 140 }}>
+            <div style={{ fontSize: 14, color: '#111', fontWeight: 600 }}>{availablePoints > 0 ? 'Ready to claim' : 'No points'}</div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{availablePoints > 0 ? `${availablePoints} pts` : '–'}</div>
+          </div>
+
+          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 120, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: '#555' }}>Total Points</div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{totalPoints}</div>
+          </div>
+
+          <div style={{ background: '#fff', padding: 12, borderRadius: 8, minWidth: 140, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: '#555' }}>Lifetime earned</div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{lifetimeEarned}</div>
+          </div>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <div style={{ fontSize: 12, color: '#555' }}>Next Reward</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{nextRewardPoints ? `${nextRewardPoints} pts` : '–'}</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>Last updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : '–'}</div>
+            <div style={{ marginTop: 8 }}>
+              <button className="refresh-btn" onClick={() => { if (window.__shakeFetchPoints) window.__shakeFetchPoints(); }}>Refresh</button>
+            </div>
+          </div>
+        </div>
 
         <div className="interactive-phone" onClick={() => { if (!isShaking) triggerClaim(); }}>
           <div className="phone-icon-large">📱</div>
