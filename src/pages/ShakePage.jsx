@@ -16,7 +16,6 @@ export default function ShakePage() {
   const navigate = useNavigate();
   const [isShaking, setIsShaking] = useState(false);
   const [availablePoints, setAvailablePoints] = useState(0);
-  const [lastClaimed, setLastClaimed] = useState(null);
   const [rewardDefs, setRewardDefs] = useState([]);
   const [lastRedemption, setLastRedemption] = useState(null);
   const [showRewardModal, setShowRewardModal] = useState(false);
@@ -32,16 +31,13 @@ export default function ShakePage() {
       if (!parsed) return;
       // Only show if it matches this user and is recent (2 minutes)
       if (parsed.email === email && (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 1000)) {
-  // Update local state and show reward popup
-  setLastClaimed(parsed.pointsClaimed || 0);
-  setAvailablePoints(parsed.availablePoints || 0);
+        // Update available points and show reward popup (no numeric "points claimed" display)
+        setAvailablePoints(parsed.availablePoints || 0);
         try {
-          const pointsClaimed = parsed.pointsClaimed || 0;
           const remaining = parsed.availablePoints || 0;
-          // Prefer backend-provided reward labels if available
           const rewardLabel = parsed.reward || parsed.rewardName || (parsed.rewards && parsed.rewards[0] && (parsed.rewards[0].name || parsed.rewards[0].label)) || parsed.prize || (parsed.raw && (parsed.raw.reward || parsed.raw.prize || parsed.raw.name)) || '';
           const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Remaining: ${remaining} pts`);
+          showToast('🎉 Redeemed!', `${rewardPart} — Remaining: ${remaining} pts`);
         } catch (e) {}
       }
       // Clear it so the popup doesn't repeat on subsequent mounts
@@ -124,21 +120,13 @@ export default function ShakePage() {
             if (raw) {
               const parsed = JSON.parse(raw);
               if (parsed && parsed.email === email) {
-                setLastClaimed(parsed.pointsClaimed || 0);
                 setAvailablePoints(parsed.availablePoints || 0);
                 localStorage.removeItem('lastClaimResult');
                 try {
-                  const pointsClaimed = parsed.pointsClaimed || 0;
                   const remaining = parsed.availablePoints || 0;
-                  let reward = 'No reward';
-                  if (pointsClaimed > 0 && pointsClaimed < 5) reward = 'RM3 voucher';
-                  else if (pointsClaimed < 10) reward = 'RM6 voucher';
-                  else if (pointsClaimed < 20) reward = 'RM8 credit';
-                  else if (pointsClaimed < 30) reward = 'RM13 credit';
-                  else if (pointsClaimed < 40) reward = 'Keychain';
-                  else if (pointsClaimed < 50) reward = 'Plushie';
-                  else reward = 'Special prize';
-                  showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Remaining: ${remaining} pts`);
+                  const rewardLabel = parsed.reward || parsed.rewardName || (parsed.rewards && parsed.rewards[0] && (parsed.rewards[0].name || parsed.rewards[0].label)) || parsed.prize || (parsed.raw && (parsed.raw.reward || parsed.raw.prize || parsed.raw.name)) || '';
+                  const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
+                  showToast('🎉 Redeemed!', `${rewardPart} — Remaining: ${remaining} pts`);
                 } catch (e) {}
               }
             }
@@ -273,7 +261,6 @@ export default function ShakePage() {
         }
 
         // Update UI state immediately using server values when available, otherwise calculate
-        setLastClaimed(redemption.cost != null ? redemption.cost : (data && data.pointsClaimed ? data.pointsClaimed : 0));
         if (serverAvailable != null) {
           setAvailablePoints(serverAvailable);
         } else {
@@ -327,10 +314,9 @@ export default function ShakePage() {
           const newTotal = r.newPoints != null ? r.newPoints : (data.newTotalPoints ?? data.points ?? '–');
           showToast(`🎉 Redeemed`, `${title} • Tier: ${r.tier || (r.rewardDef && r.rewardDef.tier) || '–'} • Cost: ${cost} • Total: ${newTotal}`, 5000);
         } else {
-          const pointsClaimed = data.pointsClaimed || 0;
           const rewardLabel = data.reward || data.rewardName || '';
           const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Total: ${data.newTotalPoints ?? data.points ?? '–' } pts`);
+          showToast('🎉 Redeemed!', `${rewardPart} — Total: ${data.newTotalPoints ?? data.points ?? '–' } pts`);
         }
       } catch (e) {}
 
@@ -393,7 +379,7 @@ export default function ShakePage() {
 
         
 
-        {lastClaimed !== null && <p style={{ marginTop: 12 }}>Last claimed: {lastClaimed} pts</p>}
+  {/* lastClaimed display removed */}
         </div>
       </div>
     </div>
