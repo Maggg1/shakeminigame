@@ -1,5 +1,5 @@
 // Lightweight API helper for the game backend
-const API = (window.API_BASE || window.VITE_API_BASE || (window.location && window.location.origin && window.location.origin.indexOf('github.io') !== -1 ? window.location.origin : undefined) ) || 'https://minigamebackend.onrender.com/admin/dashboard';
+const API = (window.API_BASE || window.VITE_API_BASE || (window.location && window.location.origin && window.location.origin.indexOf('github.io') !== -1 ? window.location.origin : undefined) ) || 'https://minigamebackend.onrender.com';
 
 function getAuthHeader() {
   try {
