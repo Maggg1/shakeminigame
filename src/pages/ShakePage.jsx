@@ -36,8 +36,7 @@ export default function ShakePage() {
         try {
           const remaining = parsed.availablePoints || 0;
           const rewardLabel = parsed.reward || parsed.rewardName || (parsed.rewards && parsed.rewards[0] && (parsed.rewards[0].name || parsed.rewards[0].label)) || parsed.prize || (parsed.raw && (parsed.raw.reward || parsed.raw.prize || parsed.raw.name)) || '';
-          const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-          showToast('🎉 Redeemed!', `${rewardPart} — Remaining: ${remaining} pts`);
+          // reward popup/modal will show redeemed info; no numeric points toast
         } catch (e) {}
       }
       // Clear it so the popup doesn't repeat on subsequent mounts
@@ -90,11 +89,7 @@ export default function ShakePage() {
             // Only show a popup here if the origin didn't already show one
             if (!detail.popupShown) {
               try {
-                const pointsClaimed = data.pointsClaimed || 0;
-                const remaining = data.availablePoints || 0;
-                const rewardLabel = data.reward || data.rewardName || (data.rewards && data.rewards[0] && (data.rewards[0].name || data.rewards[0].label)) || data.prize || (data.raw && (data.raw.reward || data.raw.prize || data.raw.name)) || '';
-                const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-                showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Remaining: ${remaining} pts`);
+                // No numeric toast; reward modal will display redemption
               } catch (e) {}
             }
             return;
@@ -124,9 +119,7 @@ export default function ShakePage() {
                 localStorage.removeItem('lastClaimResult');
                 try {
                   const remaining = parsed.availablePoints || 0;
-                  const rewardLabel = parsed.reward || parsed.rewardName || (parsed.rewards && parsed.rewards[0] && (parsed.rewards[0].name || parsed.rewards[0].label)) || parsed.prize || (parsed.raw && (parsed.raw.reward || parsed.raw.prize || parsed.raw.name)) || '';
-                  const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-                  showToast('🎉 Redeemed!', `${rewardPart} — Remaining: ${remaining} pts`);
+                  // No numeric toast; reward modal will display redemption
                 } catch (e) {}
               }
             }
@@ -312,11 +305,10 @@ export default function ShakePage() {
           const title = (r.rewardDef && (r.rewardDef.title || r.rewardDef.name)) || (r.claim && r.claim.title) || '';
           const cost = r.cost != null ? r.cost : (r.rewardDef && (r.rewardDef.cost ?? r.rewardDef.points)) || 0;
           const newTotal = r.newPoints != null ? r.newPoints : (data.newTotalPoints ?? data.points ?? '–');
-          showToast(`🎉 Redeemed`, `${title} • Tier: ${r.tier || (r.rewardDef && r.rewardDef.tier) || '–'} • Cost: ${cost} • Total: ${newTotal}`, 5000);
+          // Use reward modal for redeemed info; no numeric toast
         } else {
           const rewardLabel = data.reward || data.rewardName || '';
-          const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
-          showToast('🎉 Redeemed!', `${rewardPart} — Total: ${data.newTotalPoints ?? data.points ?? '–' } pts`);
+          // Use reward modal for redeemed info; no numeric toast
         }
       } catch (e) {}
 
