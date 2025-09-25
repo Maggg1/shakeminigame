@@ -265,9 +265,10 @@ export default function ShakePage() {
         }
 
       // Persist the claim result so other pages/components can react
+      let resultObj = null;
       try {
         // Persist the claim result (include our computed redemption so other tabs/components can render it)
-        const resultObj = {
+        resultObj = {
           email,
           pointsClaimed: redemption.cost || data.pointsClaimed || 0,
           availablePoints: serverAvailable != null ? serverAvailable : Math.max(0, (availablePoints || 0) - (redemption.cost || 0)),
@@ -287,7 +288,11 @@ export default function ShakePage() {
 
       // Notify other components
   // Notify other components and include the redemption object so they can show the reward tier immediately
-  try { window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: Object.assign({}, data || {}, { redemption }), popupShown: true } })); } catch(e) {}
+  try {
+    // Dispatch the persisted result object if available, otherwise fall back to server data merged with redemption
+    const payload = resultObj || Object.assign({}, data || {}, { redemption });
+    window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: payload, popupShown: true } }));
+  } catch(e) {}
 
       // Show redeemed reward details if present
         // Show redeemed reward details
@@ -317,7 +322,7 @@ export default function ShakePage() {
       try { showToast('❌ Claim Failed', 'Could not contact server to claim points. Please try again later.'); } catch (e) {}
     } finally {
       // Always refresh server state (if available) and stop the claiming state
-      try { if (window.__shakeFetchPoints) window.__shakeFetchPoints(); } catch (e) {}
+      // Do not force-refresh here — prefer event-driven updates so local decrements aren't immediately overwritten
       setIsShaking(false);
     }
   };

@@ -240,21 +240,33 @@ export const ShakeDashboard = ({ phoneNumber }) => {
         // Only refresh if the event matches current user (or if no detail provided)
         if (!detailEmail || detailEmail === userIdentifier) {
           setStopPolling(false);
-          fetchUserPoints();
-          // If event contains result data (claim), add to recentActivity for immediate visibility
-          try {
-            const result = ev && ev.detail && ev.detail.result;
-            if (result) {
+          const result = ev && ev.detail && ev.detail.result;
+          if (result) {
+            // Use provided result payload to update UI immediately (prefer event data over refetch)
+            try {
+              const avail = result.availablePoints ?? result.available ?? result.unclaimed ?? result.points;
+              const total = result.newTotalPoints ?? result.totalPoints ?? result.total ?? result.points;
+              if (typeof avail !== 'undefined') setAvailablePoints(Number(avail) || 0);
+              if (typeof total !== 'undefined') setTotalPoints(Number(total) || 0);
+            } catch (e) {}
+
+            // If event contains result data (claim), add to recentActivity for immediate visibility
+            try {
               const claimEntry = {
                 id: `claim-${Date.now()}`,
                 type: 'claim',
-                points: result.pointsClaimed || 0,
+                points: result.pointsClaimed || (result.redemption && result.redemption.cost) || 0,
                 timestamp: new Date().toISOString(),
                 details: result
               };
               setRecentActivity(prev => [claimEntry].concat(prev || []).slice(0, 20));
-            }
-          } catch(e) {}
+            } catch (e) {}
+            // don't re-fetch immediately; the UI is now consistent with the event
+            return;
+          }
+
+          // No result payload — fall back to fetching authoritative state from server
+          fetchUserPoints();
         }
       } catch (e) {}
     };
