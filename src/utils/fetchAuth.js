@@ -20,7 +20,11 @@ export default async function fetchAuth(url, opts = {}, timeoutMs = 7000) {
 
       const headers = Object.assign({}, opts.headers || {});
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (!headers['Content-Type'] && !(opts && opts.body)) headers['Content-Type'] = 'application/json';
+      // If a body is supplied and no Content-Type was provided, default to JSON
+      if (!headers['Content-Type'] && opts && opts.body) headers['Content-Type'] = 'application/json';
+
+      // debug: show what we're sending (avoid logging sensitive tokens)
+      try { console.debug('[fetchAuth] request', { url, method: opts.method || 'GET', hasBody: !!opts.body, hasAuth: !!headers['Authorization'] }); } catch (e) {}
 
       const res = await fetch(url, { signal, ...opts, headers, credentials: opts.credentials ?? 'include' });
       const text = await res.text().catch(() => '');
@@ -46,6 +50,7 @@ export default async function fetchAuth(url, opts = {}, timeoutMs = 7000) {
   // If unauthorized, try refreshing token once and retry
   if (result && result.status === 401) {
     try {
+      try { console.debug('[fetchAuth] 401 received, retrying with forced token refresh'); } catch(e){}
       const retryResult = await doFetch(true);
       return retryResult;
     } catch (err) {

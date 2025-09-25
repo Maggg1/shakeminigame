@@ -184,6 +184,7 @@ export default function ShakePage() {
       }, 7000);
       if (res && res.ok) {
         const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
+        try { console.debug('[ShakePage] claim response', data); } catch(e){}
         setLastClaimed(data.pointsClaimed || 0);
         setAvailablePoints(data.availablePoints || 0);
         // Persist the claim result so other pages/components can react
@@ -216,6 +217,7 @@ export default function ShakePage() {
       else {
         // Backend returned non-OK — fallback to local PointsSystem to avoid losing points
         try {
+          try { console.warn('[ShakePage] claim failed response', res && (res.bodyText || res.statusText || res.status)); } catch(e){}
           if (email) {
             const ps = new PointsSystem(email);
             // Claim one point locally as a fallback
