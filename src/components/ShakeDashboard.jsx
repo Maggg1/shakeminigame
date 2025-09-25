@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { PointsSystem } from '../utils/pointsSystem';
 import { useRef } from 'react';
 import { getIdToken } from '../services/auth';
+import fetchAuth from '../utils/fetchAuth';
 import { getAuth } from 'firebase/auth';
 
 export const ShakeDashboard = ({ phoneNumber }) => {
@@ -104,18 +105,8 @@ export const ShakeDashboard = ({ phoneNumber }) => {
 
       let result;
       try {
-        // Obtain Firebase ID token from the current user and include in Authorization header
-        let token = null;
-        try {
-          const authInst = getAuth();
-          const user = authInst.currentUser;
-          if (user) token = await user.getIdToken(/* forceRefresh= */ false);
-        } catch (e) {
-          token = null;
-        }
-        if (!token) token = localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token');
-        const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-        result = await fetchWithTimeout(url, { method: 'GET', headers, credentials: 'include' }, 7000);
+        // Use centralized fetchAuth which will attach Authorization and retry on 401
+        result = await fetchAuth(url, { method: 'GET' }, 7000);
       } catch (networkErr) {
         // Distinguish timeout/abort from other network failures
         if (networkErr && networkErr.name === 'AbortError') {

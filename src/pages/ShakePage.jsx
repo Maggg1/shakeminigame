@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { getAuth } from 'firebase/auth';
 import { PointsSystem } from '../utils/pointsSystem';
+import fetchAuth from '../utils/fetchAuth';
 
 const SHAKE_THRESHOLD = 15; // Acceleration threshold
 
@@ -48,14 +49,11 @@ export default function ShakePage() {
     const fetchPoints = async () => {
       try {
         if (!email) return;
-        // Attach Firebase ID token
-        let token = null;
-        try { const a = getAuth(); if (a.currentUser) token = await a.currentUser.getIdToken(); } catch(e) { token = null; }
-  const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-        // Add a cache-busting timestamp to avoid stale responses
-        const res = await fetch(`${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`, { headers, credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
+        // Use centralized fetchAuth which handles token attachment and retry
+        const url = `${API}/rewards?email=${encodeURIComponent(email)}&_=${Date.now()}`;
+        const res = await fetchAuth(url, { method: 'GET' }, 7000);
+        if (res && res.ok) {
+          const data = res.json ?? res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
           const available = data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0;
           setAvailablePoints(Number(available) || 0);
         }
@@ -180,17 +178,12 @@ export default function ShakePage() {
   const triggerClaim = async () => {
     setIsShaking(true);
     try {
-      // Attach Firebase ID token
-      let postToken = null;
-      try { const a = getAuth(); if (a.currentUser) postToken = await a.currentUser.getIdToken(); } catch(e) { postToken = null; }
-      const postHeaders = postToken ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${postToken}` } : { 'Content-Type': 'application/json' };
-      // Only claim a single point per shake
-      const res = await fetch(`${API}/shake`, {
+      // Only claim a single point per shake. Use fetchAuth which will attach token and retry on 401.
+      const res = await fetchAuth(`${API}/shake`, {
         method: 'POST',
-        headers: postHeaders,
         body: JSON.stringify({ email, pointsToClaim: 1 }),
-        credentials: 'include'
-      });
+        headers: { 'Content-Type': 'application/json' }
+      }, 7000);
       if (res.ok) {
         const data = await res.json();
         setLastClaimed(data.pointsClaimed || 0);
