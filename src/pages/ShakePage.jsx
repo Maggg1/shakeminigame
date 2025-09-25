@@ -59,7 +59,7 @@ export default function ShakePage() {
         if (res && res.ok) {
           const data = res.json ?? (res.bodyText ? (() => { try { return JSON.parse(res.bodyText); } catch(e){ return null; } })() : null) ?? {};
           const available = data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0;
-          const total = data.totalPoints ?? data.total ?? data.user && data.user.totalPoints ?? 0;
+          const total = (data.totalPoints ?? data.total ?? (data.user && data.user.totalPoints)) ?? 0;
           const lifetime = (data.lifetimeEarned ?? data.totalEarned ?? (data.user && data.user.lifetimeEarned) ?? total) || 0;
           setAvailablePoints(Number(available) || 0);
           setTotalPoints(Number(total) || 0);
