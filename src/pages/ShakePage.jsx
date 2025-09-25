@@ -226,37 +226,72 @@ export default function ShakePage() {
 
       // Update UI state from server response
         // Prefer server-provided redemption info
-        if (data && data.redemption && data.redemption.ok) {
-          const r = data.redemption;
-          // use cost as the claimed points where available
-          setLastClaimed(r.cost != null ? r.cost : (data.pointsClaimed || 0));
-          setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
+        // Determine points claimed (server may provide pointsClaimed or redemption.cost)
+        const serverAvailable = data && (data.availablePoints ?? data.available ?? data.unclaimed ?? data.points);
+        const pointsClaimed = (data && (data.pointsClaimed || (data.redemption && data.redemption.cost) )) || 0;
+
+        // Helper to map points to a reward tier/title
+        const mapPointsToReward = (p) => {
+          const n = Number(p) || 0;
+          if (n > 0 && n < 5) return { tier: 'small', title: 'RM3 voucher' };
+          if (n < 10) return { tier: 'minor', title: 'RM6 voucher' };
+          if (n < 20) return { tier: 'standard', title: 'RM8 credit' };
+          if (n < 30) return { tier: 'large', title: 'RM13 credit' };
+          if (n < 40) return { tier: 'premium', title: 'Keychain' };
+          if (n < 50) return { tier: 'deluxe', title: 'Plushie' };
+          return { tier: 'special', title: 'Special prize' };
+        };
+
+        // If server returned a redemption, use it; otherwise compute one locally
+        let redemption = data && data.redemption ? data.redemption : null;
+        if (!redemption) {
+          const p = pointsClaimed || (typeof availablePoints === 'number' ? Math.min(availablePoints, 1) : 0);
+          const r = mapPointsToReward(p);
+          redemption = {
+            ok: true,
+            cost: pointsClaimed || p,
+            tier: r.tier,
+            rewardDef: { title: r.title },
+            timestamp: Date.now()
+          };
+        }
+
+        // Update UI state immediately using server values when available, otherwise calculate
+        setLastClaimed(redemption.cost != null ? redemption.cost : (data && data.pointsClaimed ? data.pointsClaimed : 0));
+        if (serverAvailable != null) {
+          setAvailablePoints(serverAvailable);
         } else {
-          setLastClaimed(data.pointsClaimed || 0);
-          setAvailablePoints(data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0);
+          // best-effort local decrement when server doesn't tell us the new available points
+          try {
+            const remaining = Math.max(0, (availablePoints || 0) - (redemption.cost || 0));
+            setAvailablePoints(remaining);
+          } catch (e) { /* ignore */ }
         }
 
       // Persist the claim result so other pages/components can react
       try {
+        // Persist the claim result (include our computed redemption so other tabs/components can render it)
         const resultObj = {
           email,
-          pointsClaimed: data.pointsClaimed || 0,
-          availablePoints: data.availablePoints || data.available || data.unclaimed || data.points || 0,
+          pointsClaimed: redemption.cost || data.pointsClaimed || 0,
+          availablePoints: serverAvailable != null ? serverAvailable : Math.max(0, (availablePoints || 0) - (redemption.cost || 0)),
           newTotalPoints: data.newTotalPoints || data.points || null,
           raw: data,
+          redemption,
           timestamp: Date.now()
         };
-        localStorage.setItem('lastClaimResult', JSON.stringify(resultObj));
+        try { localStorage.setItem('lastClaimResult', JSON.stringify(resultObj)); } catch (e) {}
       } catch (e) {}
 
       // Notify other components
-      try { window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: data, popupShown: true } })); } catch(e) {}
+  // Notify other components and include the redemption object so they can show the reward tier immediately
+  try { window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: Object.assign({}, data || {}, { redemption }), popupShown: true } })); } catch(e) {}
 
       // Show redeemed reward details if present
-        if (data.redemption) {
-          const r = data.redemption;
-          setLastRedemption(r);
-          if (r.ok) setShowRewardModal(true);
+        // Show redeemed reward details
+        if (redemption) {
+          setLastRedemption(redemption);
+          if (redemption.ok) setShowRewardModal(true);
         } else {
           setLastRedemption(null);
         }
