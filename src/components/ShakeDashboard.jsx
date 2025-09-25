@@ -90,6 +90,11 @@ export const ShakeDashboard = ({ phoneNumber }) => {
     { points: 100, reward: "Physical Plushie" }
   ];
 
+  // When a claim happens we persist a short-lived local result object to localStorage
+  // so other pages (or navigation back) can show the deducted balance immediately
+  // without being overwritten by a stale server response. This is the grace window.
+  const CLAIM_GRACE_MS = 10000; // 10s
+
   const fetchUserPoints = async () => {
     try {
       setIsLoading(true);
@@ -221,6 +226,62 @@ export const ShakeDashboard = ({ phoneNumber }) => {
 
   useEffect(() => {
     // Reset polling state when user changes
+    // If a recent claim was just made, prefer that local result for a short grace window
+    // so a stale server fetch doesn't immediately overwrite the deducted balance.
+    const tryConsumeLocalClaim = () => {
+      try {
+        const raw = localStorage.getItem('lastClaimResult');
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        if (!parsed) return false;
+        // Accept the local claim if it matches the current user and is reasonably recent (2 minutes)
+        if (parsed.email === userIdentifier && (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 1000)) {
+          // Apply the locally computed availablePoints immediately
+          setAvailablePoints(Number(parsed.availablePoints) || 0);
+          // Prepend to recent activity for visibility
+          try {
+            const rewardTitle = (parsed.redemption && (parsed.redemption.rewardDef && (parsed.redemption.rewardDef.title || parsed.redemption.rewardDef.name))) || parsed.reward || parsed.rewardName || '';
+            const claimEntry = {
+              id: `claim-local-${Date.now()}`,
+              type: 'claim',
+              reward: rewardTitle || '',
+              timestamp: new Date().toISOString(),
+              details: parsed
+            };
+            setRecentActivity(prev => [claimEntry].concat(prev || []).slice(0, 20));
+          } catch (e) {}
+          // Consume the storage key so it doesn't reapply on the next mount
+          try { localStorage.removeItem('lastClaimResult'); } catch (e) {}
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+
+    const consumed = tryConsumeLocalClaim();
+
+    if (consumed) {
+      // If we used the local claim, stop polling briefly and schedule a refresh after the grace window
+      setStopPolling(true);
+      const t = setTimeout(() => {
+        setStopPolling(false);
+        // fetch authoritative state after the grace period
+        (async () => { try { await fetchUserPoints(); } catch (e) {} })();
+      }, CLAIM_GRACE_MS);
+      // load reward definitions in parallel
+      (async () => {
+        try {
+          const defs = await gameApi.getRewardDefinitions();
+          setRewardDefs(defs && defs.rewards ? defs.rewards : (defs || []));
+        } catch (e) { /* ignore */ }
+      })();
+      const interval = setInterval(() => {
+        if (!stopPolling) fetchUserPoints();
+      }, 5000);
+      return () => { clearInterval(interval); clearTimeout(t); };
+    }
+
+    // No recent local claim to consume — proceed normally
     setStopPolling(false);
     fetchUserPoints();
     // load reward definitions for help modal and display
