@@ -32,15 +32,10 @@ export default function ShakePage() {
         try {
           const pointsClaimed = parsed.pointsClaimed || 0;
           const remaining = parsed.availablePoints || 0;
-          let reward = 'No reward';
-          if (pointsClaimed > 0 && pointsClaimed < 5) reward = 'RM3 voucher';
-          else if (pointsClaimed < 10) reward = 'RM6 voucher';
-          else if (pointsClaimed < 20) reward = 'RM8 credit';
-          else if (pointsClaimed < 30) reward = 'RM13 credit';
-          else if (pointsClaimed < 40) reward = 'Keychain';
-          else if (pointsClaimed < 50) reward = 'Plushie';
-          else reward = 'Special prize';
-          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Remaining: ${remaining} pts`);
+          // Prefer backend-provided reward labels if available
+          const rewardLabel = parsed.reward || parsed.rewardName || (parsed.rewards && parsed.rewards[0] && (parsed.rewards[0].name || parsed.rewards[0].label)) || parsed.prize || (parsed.raw && (parsed.raw.reward || parsed.raw.prize || parsed.raw.name)) || '';
+          const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
+          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Remaining: ${remaining} pts`);
         } catch (e) {}
       }
       // Clear it so the popup doesn't repeat on subsequent mounts
@@ -89,15 +84,9 @@ export default function ShakePage() {
               try {
                 const pointsClaimed = data.pointsClaimed || 0;
                 const remaining = data.availablePoints || 0;
-                let reward = 'No reward';
-                if (pointsClaimed > 0 && pointsClaimed < 5) reward = 'RM3 voucher';
-                else if (pointsClaimed < 10) reward = 'RM6 voucher';
-                else if (pointsClaimed < 20) reward = 'RM8 credit';
-                else if (pointsClaimed < 30) reward = 'RM13 credit';
-                else if (pointsClaimed < 40) reward = 'Keychain';
-                else if (pointsClaimed < 50) reward = 'Plushie';
-                else reward = 'Special prize';
-                showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Remaining: ${remaining} pts`);
+                const rewardLabel = data.reward || data.rewardName || (data.rewards && data.rewards[0] && (data.rewards[0].name || data.rewards[0].label)) || data.prize || (data.raw && (data.raw.reward || data.raw.prize || data.raw.name)) || '';
+                const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
+                showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Remaining: ${remaining} pts`);
               } catch (e) {}
             }
             return;
@@ -225,18 +214,12 @@ export default function ShakePage() {
           window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: data, popupShown: true } }));
         } catch (e) {}
 
-        // Show a quick reward popup similar to dashboard
+        // Show a quick reward popup using backend-provided reward info when available
         try {
           const pointsClaimed = data.pointsClaimed || 0;
-          let reward = 'No reward';
-          if (pointsClaimed > 0 && pointsClaimed < 5) reward = 'RM3 voucher';
-          else if (pointsClaimed < 10) reward = 'RM6 voucher';
-          else if (pointsClaimed < 20) reward = 'RM8 credit';
-          else if (pointsClaimed < 30) reward = 'RM13 credit';
-          else if (pointsClaimed < 40) reward = 'Keychain';
-          else if (pointsClaimed < 50) reward = 'Plushie';
-          else reward = 'Special prize';
-          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts — ${reward} — Total: ${data.newTotalPoints ?? '–' } pts`);
+          const rewardLabel = data.reward || data.rewardName || (data.rewards && data.rewards[0] && (data.rewards[0].name || data.rewards[0].label)) || data.prize || (data.raw && (data.raw.reward || data.raw.prize || data.raw.name)) || '';
+          const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
+          showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Total: ${data.newTotalPoints ?? '–' } pts`);
         } catch (e) {}
       }
       else {
@@ -258,6 +241,13 @@ export default function ShakePage() {
             window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: resultObj } }));
             setLastClaimed(localClaim.pointsClaimed || 0);
             setAvailablePoints(ps.availablePoints || 0);
+            // show fallback toast using any available backend-like fields
+            try {
+              const pointsClaimed = resultObj.pointsClaimed || 0;
+              const rewardLabel = resultObj.reward || resultObj.rewardName || (resultObj.rewards && resultObj.rewards[0] && (resultObj.rewards[0].name || resultObj.rewards[0].label)) || resultObj.prize || '';
+              const rewardPart = rewardLabel ? ` — ${rewardLabel}` : '';
+              showToast('🎉 Points Claimed!', `+${pointsClaimed} pts${rewardPart} — Remaining: ${resultObj.availablePoints || 0} pts`);
+            } catch (e) {}
           }
         } catch (e) {}
       }
