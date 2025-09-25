@@ -376,14 +376,7 @@ export default function ShakePage() {
         <p className="shake-page-subtitle">Shake or Tap to claim your available points.</p>
 
         <div style={{ textAlign: 'center', margin: '18px 0' }}>
-          {availablePoints > 0 ? (
-            <>
-              <div style={{ fontSize: 48, fontWeight: 800 }}>{availablePoints}</div>
-              <div style={{ marginTop: 6, fontSize: 16, color: '#444' }}>Ready to claim</div>
-            </>
-          ) : (
-            <div style={{ marginTop: 6, fontSize: 16, color: '#444' }}>No points available</div>
-          )}
+          <div style={{ marginTop: 6, fontSize: 16, color: '#444' }}>{availablePoints > 0 ? 'Ready to claim' : 'No points available'}</div>
         </div>
 
         <div className="interactive-phone" onClick={() => { if (!isShaking) triggerClaim(); }}>
