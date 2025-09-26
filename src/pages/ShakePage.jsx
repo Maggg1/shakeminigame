@@ -26,6 +26,15 @@ export default function ShakePage() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [lifetimeEarned, setLifetimeEarned] = useState(0);
   const [nextRewardPoints, setNextRewardPoints] = useState(null);
+  const lastAccel = useRef({ x: null, y: null, z: null });
+  const shakeTimeoutRef = useRef(null);
+  const shakeAudioRef = useRef(null);
+  const animatingFlagRef = useRef(false);
+  const lastShakeAtRef = useRef(0);
+  // audio removed: vocal-warble shake SFX disabled per request
+  const audioPlayingRef = useRef(false);
+  const startSeqIdRef = useRef(0);
+  const [isAnimatingShake, setIsAnimatingShake] = useState(false);
   useEffect(() => {
     // Fetch available points
     const fetchPoints = async () => {
