@@ -104,7 +104,9 @@ export default function ShakePage() {
     (async () => {
       try {
         const defs = await gameApi.getRewardDefinitions();
-        setRewardDefs(defs && defs.rewards ? defs.rewards : (defs || []));
+        const list = defs && defs.rewards ? defs.rewards : (defs || []);
+        console.debug('[ShakePage] loaded reward definitions', list);
+        setRewardDefs(list);
       } catch (e) {
         console.warn('Failed loading reward defs', e);
       }
