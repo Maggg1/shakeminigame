@@ -69,6 +69,7 @@ body.light-theme {
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   transition: all 0.3s ease;
+  position: relative; /* allow absolutely positioned header decorations like the walrus */
 }
 
 body.light-theme .app-header {
@@ -95,19 +96,21 @@ body.light-theme .app-header {
   background-clip: text;
   transition: all 0.3s ease;
   position: relative;
-  padding-top: clamp(40px, 8vw, 72px); /* make room for the walrus placed above */
+  padding-top: clamp(28px, 6vw, 56px); /* smaller top padding now that walrus is inside header */
 }
 
-.app-title h1 .walrus-header-img {
+.app-header .walrus-header-img {
+  /* center the walrus across the entire header */
   position: absolute;
-  top: 0;
+  top: 12px;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   width: clamp(40px, 10vw, 88px);
   height: auto;
   display: block;
   background: transparent;
   box-shadow: none;
+  z-index: 5;
 }
 
 body.light-theme .app-title h1 {
