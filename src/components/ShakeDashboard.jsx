@@ -26,6 +26,7 @@ export const ShakeDashboard = ({ phoneNumber }) => {
   const [rewardDefs, setRewardDefs] = useState([]);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [lastRedemption, setLastRedemption] = useState(null);
+  const lastModalShownAtRef = useRef(0);
   const [claimAmount, setClaimAmount] = useState('all');
   const [helpOpen, setHelpOpen] = useState(false);
   const [stopPolling, setStopPolling] = useState(false);
@@ -457,11 +458,17 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           try { localStorage.setItem('lastClaimResult', JSON.stringify(lastClaim)); } catch (e) {}
           try { window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email: userIdentifier, result: data, popupShown: true } })); } catch (e) {}
 
-          // Show the modal inside the app using redemption info
+          // Show the modal inside the app using redemption info, but avoid duplicate popups
           setTimeout(() => {
             setIsShaking(false);
             setLastRedemption(r);
-            setShowRewardModal(true);
+            try {
+              const now = Date.now();
+              if (now - lastModalShownAtRef.current > 2500) {
+                setShowRewardModal(true);
+                lastModalShownAtRef.current = now;
+              }
+            } catch (e) { setShowRewardModal(true); }
           }, 200);
         }
       } catch (e) {
