@@ -1,13 +1,49 @@
 // Lightweight API helper for the game backend — minimal surface used by the app
 const API_BASE = (window.API_BASE || window.VITE_API_BASE || (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.indexOf('github.io') !== -1 ? window.location.origin : undefined) ) || 'https://minigamebackend.onrender.com';
 
+// Helper: prepare Authorization headers. If we detect a Firebase ID token (JWT), try exchanging
+// it with the backend's /auth/session endpoint to obtain a backend token or session. If exchange
+// is unavailable, include the ID token in X-Firebase-IdToken as a hint so the backend can verify it
+// server-side if it supports Firebase admin verification.
+async function prepareAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  try {
+    let token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
+    if (!token) return headers;
+    const looksLikeJWT = typeof token === 'string' && token.split && token.split('.').length === 3;
+    if (looksLikeJWT) {
+      try {
+        const sessionRes = await fetch(API_BASE.replace(/\/$/, '') + '/auth/session', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: token })
+        });
+        if (sessionRes.ok) {
+          const txt = await sessionRes.text().catch(() => '');
+          let parsed = null;
+          try { parsed = txt ? JSON.parse(txt) : null; } catch (e) { parsed = null; }
+          if (parsed && parsed.token) {
+            try { localStorage.setItem('emailAuth_token', parsed.token); localStorage.setItem('authToken', parsed.token); } catch(e){}
+            headers['Authorization'] = `Bearer ${parsed.token}`;
+            return headers;
+          }
+          // if backend created a cookie session, we still fallthrough and include hint
+        }
+      } catch (e) {}
+      // either exchange failed or not available; include the raw id token as a hint header
+      headers['X-Firebase-IdToken'] = token;
+      return headers;
+    }
+    // not a JWT, use as Authorization bearer
+    headers['Authorization'] = `Bearer ${token}`;
+  } catch (e) {}
+  return headers;
+}
+
 async function getRewardDefinitions() {
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    try {
-      const token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-    } catch (e) {}
+    const headers = await prepareAuthHeaders();
     const res = await fetch(API_BASE + '/rewards/definitions', { headers, credentials: 'include' });
     const json = await res.json().catch(() => null);
     // Normalize a variety of server response shapes into { rewards: [...] }
@@ -66,11 +102,7 @@ async function getRewardDefinitions() {
 // Shake endpoint used by the UI. Accepts either (email) or (email, options).
 async function shake(email, options = {}) {
   const body = Object.assign({ email }, (options && typeof options === 'object') ? options : {});
-  const headers = { 'Content-Type': 'application/json' };
-  try {
-    const token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  } catch (e) {}
+  const headers = await prepareAuthHeaders();
   try {
     const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
     if (isDev) {
@@ -90,11 +122,7 @@ async function shake(email, options = {}) {
 async function claimPoints(email, points = 0) {
   try {
     const body = { email, points };
-    const headers = { 'Content-Type': 'application/json' };
-    try {
-      const token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-    } catch (e) {}
+    const headers = await prepareAuthHeaders();
     const res = await fetch(API_BASE + '/claim', { method: 'POST', headers, body: JSON.stringify(body), credentials: 'include' });
     if (!res.ok) return null;
     return await res.json();
