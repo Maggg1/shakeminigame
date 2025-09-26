@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import './App.css';
 import walrusImg from './assets/walrus.png';
 import { useAuth } from './hooks/useAuth';
@@ -15,6 +15,72 @@ function App() {
     loading: authLoading,
     getDisplayName
   } = useAuth();
+
+  // refs and drag state for the walrus header image
+  const walrusRef = useRef(null);
+  const headerRef = useRef(null);
+  const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, origLeft: 0, origTop: 0 });
+
+  useEffect(() => {
+    // ensure walrus has position style we can manipulate
+    const w = walrusRef.current;
+    if (w) {
+      w.style.touchAction = 'none';
+      w.style.cursor = 'grab';
+    }
+  }, []);
+
+  const handlePointerDown = (ev) => {
+    const w = walrusRef.current;
+    const h = headerRef.current;
+    if (!w || !h) return;
+    ev.preventDefault();
+    w.setPointerCapture(ev.pointerId);
+    const rect = w.getBoundingClientRect();
+    const headerRect = h.getBoundingClientRect();
+    dragStateRef.current = {
+      dragging: true,
+      startX: ev.clientX,
+      startY: ev.clientY,
+      origLeft: rect.left - headerRect.left,
+      origTop: rect.top - headerRect.top,
+      headerRect,
+      elemRect: rect
+    };
+    try { w.style.cursor = 'grabbing'; } catch (e) {}
+  };
+
+  const handlePointerMove = (ev) => {
+    const w = walrusRef.current;
+    const state = dragStateRef.current;
+    if (!w || !state.dragging) return;
+    ev.preventDefault();
+    const dx = ev.clientX - state.startX;
+    const dy = ev.clientY - state.startY;
+    let newLeft = state.origLeft + dx;
+    let newTop = state.origTop + dy;
+    // constrain within headerRect
+    const hRect = state.headerRect;
+    const eRect = state.elemRect;
+    const maxLeft = hRect.width - eRect.width;
+    const maxTop = hRect.height - eRect.height;
+    if (newLeft < 0) newLeft = 0;
+    if (newTop < 0) newTop = 0;
+    if (newLeft > maxLeft) newLeft = maxLeft;
+    if (newTop > maxTop) newTop = maxTop;
+    w.style.position = 'absolute';
+    w.style.left = newLeft + 'px';
+    w.style.top = newTop + 'px';
+  };
+
+  const handlePointerUp = (ev) => {
+    const w = walrusRef.current;
+    const state = dragStateRef.current;
+    if (!w || !state.dragging) return;
+    try { w.releasePointerCapture(ev.pointerId); } catch (e) {}
+    dragStateRef.current.dragging = false;
+    try { w.style.cursor = 'grab'; } catch (e) {}
+  };
 
   const handleLoginSuccess = (email) => {
     login(email);
@@ -46,10 +112,21 @@ function App() {
   return (
     <div className="app authenticated">
       <div className="app-container">
-        <header className="app-header">
+        <header className="app-header" ref={headerRef}>
           <div className="header-content">
             <div className="app-title">
-              <h1><img src={walrusImg} alt="walrus" className="walrus-header-img" /> Shake Rewards</h1>
+              <h1>
+                <img
+                  src={walrusImg}
+                  alt="walrus"
+                  className="walrus-header-img"
+                  ref={walrusRef}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                />
+                Shake Rewards
+              </h1>
               <p className="subtitle">{(typeof getDisplayName === 'function' && getDisplayName()) ? <span className="user-display-name">{getDisplayName()}</span> : email}</p>
             </div>
             <div className="user-info">

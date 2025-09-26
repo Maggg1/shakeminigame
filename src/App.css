@@ -113,6 +113,12 @@ body.light-theme .app-header {
   z-index: 5;
 }
 
+/* when the walrus is made movable we allow pointer interactions */
+.app-header .walrus-header-img[style] {
+  /* images with inline style will be positioned absolutely by JS; ensure they stay on top */
+  z-index: 20;
+}
+
 body.light-theme .app-title h1 {
   background: linear-gradient(45deg, #0891b2, #2563eb, #1e293b);
   -webkit-background-clip: text;
