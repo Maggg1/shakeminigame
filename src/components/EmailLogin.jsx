@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './EmailLogin.css';
-import walrusImg from '../assets/walrus.png';
+import walrusImg from '../assets/walrusicon.png';
 import { sendVerificationCode, verifyCode, signInWithEmail, signInWithGoogle, handleRedirectResult } from '../services/auth';
 
 /**

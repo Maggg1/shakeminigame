@@ -225,6 +225,16 @@ body.light-theme .login-container {
   margin-bottom: 16px;
 }
 
+.walrus-header-img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  transform-origin: center;
+  animation: walrusFloat 4s ease-in-out infinite;
+}
+
 .logo-icon {
   font-size: 3rem;
   animation: float 3s ease-in-out infinite;
@@ -580,6 +590,14 @@ body.light-theme .demo-hint p:first-child {
   66% { 
     transform: translateY(-4px) rotate(-1deg); 
   }
+}
+
+@keyframes walrusFloat {
+  0% { transform: translateY(0) rotate(-1deg); }
+  25% { transform: translateY(-10px) rotate(2deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-6px) rotate(-2deg); }
+  100% { transform: translateY(0) rotate(-1deg); }
 }
 
 @keyframes spin {
