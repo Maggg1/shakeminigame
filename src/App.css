@@ -113,6 +113,14 @@ body.light-theme .app-header {
   z-index: 5;
 }
 
+/* Improve mobile dragging: prevent default touch scrolling when interacting with the walrus */
+.app-header .walrus-header-img {
+  touch-action: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
 /* when the walrus is made movable we allow pointer interactions */
 .app-header .walrus-header-img[style] {
   /* images with inline style will be positioned absolutely by JS; ensure they stay on top */

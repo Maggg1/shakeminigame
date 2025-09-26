@@ -82,6 +82,35 @@ function App() {
     try { w.style.cursor = 'grab'; } catch (e) {}
   };
 
+  // Touch fallback for older mobile browsers that don't fully support Pointer Events
+  const handleTouchStart = (ev) => {
+    if (!ev || !ev.touches || ev.touches.length === 0) return;
+    const t = ev.touches[0];
+    // create a synthetic event shape for the pointer handlers
+    const synth = {
+      clientX: t.clientX,
+      clientY: t.clientY,
+      pointerId: t.identifier,
+      preventDefault() { try { ev.preventDefault(); } catch(e) {} }
+    };
+    handlePointerDown(synth);
+  };
+
+  const handleTouchMove = (ev) => {
+    if (!ev || !ev.touches || ev.touches.length === 0) return;
+    const t = ev.touches[0];
+    const synth = { clientX: t.clientX, clientY: t.clientY, preventDefault() { try { ev.preventDefault(); } catch(e) {} } };
+    handlePointerMove(synth);
+  };
+
+  const handleTouchEnd = (ev) => {
+    // use changedTouches for the final position
+    if (!ev || !ev.changedTouches || ev.changedTouches.length === 0) return;
+    const t = ev.changedTouches[0];
+    const synth = { clientX: t.clientX, clientY: t.clientY, pointerId: t.identifier, preventDefault() { try { ev.preventDefault(); } catch(e) {} } };
+    handlePointerUp(synth);
+  };
+
   const handleLoginSuccess = (email) => {
     login(email);
   };
@@ -124,6 +153,9 @@ function App() {
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                 />
                 Shake Rewards
               </h1>
