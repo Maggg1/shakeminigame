@@ -30,6 +30,17 @@ export default async function fetchAuth(url, opts = {}, timeoutMs = 7000) {
         if (typeof url === 'string' && url.startsWith('/')) fetchUrl = BACKEND_BASE.replace(/\/$/, '') + url;
       } catch (e) {}
 
+      // DEV-only debug: log the request and whether an auth token is present (mask the token)
+      try {
+        const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
+        if (isDev) {
+          try {
+            const masked = token ? String(token).slice(0, 8) + '...' : 'none';
+            console.debug('[fetchAuth] ->', (opts && opts.method) || 'GET', fetchUrl, 'auth=', masked);
+          } catch (e) {}
+        }
+      } catch (e) {}
+
       const res = await fetch(fetchUrl, { signal, ...opts, headers, credentials: opts.credentials ?? 'include' });
       const text = await res.text().catch(() => '');
       let json = null;

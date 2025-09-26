@@ -71,6 +71,16 @@ async function shake(email, options = {}) {
     const token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
     if (token) headers['Authorization'] = `Bearer ${token}`;
   } catch (e) {}
+  try {
+    const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
+    if (isDev) {
+      try {
+        const t = (localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken')) || null;
+        const masked = t ? String(t).slice(0,8) + '...' : 'none';
+        console.debug('[game-api] POST /shake', { email: String(email).slice(0,8) + '...', token: masked, body });
+      } catch (e) {}
+    }
+  } catch (e) {}
   const res = await fetch(API_BASE + '/shake', { method: 'POST', headers, body: JSON.stringify(body), credentials: 'include' });
   return await res.json();
 }
