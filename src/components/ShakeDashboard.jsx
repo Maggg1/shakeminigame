@@ -9,7 +9,6 @@ import { getIdToken } from '../services/auth';
 import fetchAuth from '../utils/fetchAuth';
 import { getAuth } from 'firebase/auth';
 import gameApi from '../services/game-api';
-import RewardModal from './RewardModal';
 
 export const ShakeDashboard = ({ phoneNumber }) => {
   const auth = useAuth();
@@ -24,9 +23,6 @@ export const ShakeDashboard = ({ phoneNumber }) => {
   const [lastFetchRaw, setLastFetchRaw] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [rewardDefs, setRewardDefs] = useState([]);
-  const [showRewardModal, setShowRewardModal] = useState(false);
-  const [lastRedemption, setLastRedemption] = useState(null);
-  const lastModalShownAtRef = useRef(0);
   const [claimAmount, setClaimAmount] = useState('all');
   const [helpOpen, setHelpOpen] = useState(false);
   const [stopPolling, setStopPolling] = useState(false);
@@ -461,14 +457,6 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           // Show the modal inside the app using redemption info, but avoid duplicate popups
           setTimeout(() => {
             setIsShaking(false);
-            setLastRedemption(r);
-            try {
-              const now = Date.now();
-              if (now - lastModalShownAtRef.current > 2500) {
-                setShowRewardModal(true);
-                lastModalShownAtRef.current = now;
-              }
-            } catch (e) { setShowRewardModal(true); }
           }, 200);
         }
       } catch (e) {
@@ -637,7 +625,6 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           {helpModalMarkup}
         </>
       )}
-      <RewardModal open={showRewardModal} onClose={() => setShowRewardModal(false)} redemption={lastRedemption} />
     </div>
   );
 };

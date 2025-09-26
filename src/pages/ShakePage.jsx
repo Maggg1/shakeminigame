@@ -270,116 +270,58 @@ export default function ShakePage() {
     try {
       // capture pre-claim points so we don't read state after an async setState
       const preClaimPoints = Number(availablePoints || 0);
-      // Choose a reward locally first (so we can send a meaningful request to the backend)
-      const chooseReward = (points) => {
-        const n = Number(points) || 0;
-        if (Array.isArray(rewardDefs) && rewardDefs.length > 0) {
-          const candidates = rewardDefs.map(r => {
-            const cost = r.pointsRequired ?? r.cost ?? r.points ?? 0;
-            return Object.assign({}, r, { __cost: Number(cost || 0) });
-          }).filter(r => r.__cost <= n && r.__cost > 0);
-          if (candidates.length > 0) {
-            candidates.sort((a,b) => b.__cost - a.__cost);
-            const best = candidates[0];
-            return { tier: best.tier || best.id || best._id || 'reward', title: best.title || best.name || best.label || best.reward || '', cost: best.__cost, rewardDef: best };
-          }
-        }
-        if (n > 0 && n < 5) return { tier: 'small', title: 'RM3 voucher', cost: 1 };
-        if (n < 10) return { tier: 'minor', title: 'RM6 voucher', cost: 5 };
-        if (n < 20) return { tier: 'standard', title: 'RM8 credit', cost: 10 };
-        if (n < 30) return { tier: 'large', title: 'RM13 credit', cost: 20 };
-        if (n < 40) return { tier: 'premium', title: 'Keychain', cost: 30 };
-        if (n < 50) return { tier: 'deluxe', title: 'Plushie', cost: 40 };
-        return { tier: 'special', title: 'Special prize', cost: Math.min(n, 50) };
-      };
 
-      // Client-side chosen reward (sent to server for validation/deduction)
-      const clientPoints = Number(availablePoints || 0);
-      const clientChosen = chooseReward(clientPoints);
-      const payload = {
-        email,
-        rewardId: clientChosen.rewardDef && (clientChosen.rewardDef._id || clientChosen.rewardDef.id) || null,
-        rewardTitle: clientChosen.title || null,
-        cost: clientChosen.cost || 0,
-        clientChosen: true
-      };
+      // Build a minimal payload and let the backend decide which reward to award.
+      // We intentionally avoid any client-side reward selection to rely solely on server logic.
+      const payload = { email, clientChosen: false };
 
-      // Build a client-side redemption fallback (based on clientChosen)
-      const redemptionFallback = {
-        ok: true,
-        cost: clientChosen.cost || 0,
-        tier: clientChosen.tier,
-        rewardDef: clientChosen.rewardDef ? clientChosen.rewardDef : { title: clientChosen.title },
-        timestamp: Date.now()
-      };
+      // Call server shake endpoint — expect server to return an authoritative `redemption` and `availablePoints`.
+      const data = await gameApi.shake(email, payload);
+      console.log('Shake response', data);
 
-      // Optimistic UI: show the reward modal immediately with the fallback redemption
-      try {
-        const before = Number(availablePoints || 0);
-        const localAfter = Math.max(0, before - (redemptionFallback.cost || 0));
-        setLastRedemption(redemptionFallback);
+      const serverAvailable = (typeof data?.availablePoints !== 'undefined' && data?.availablePoints !== null) ? Number(data.availablePoints) : null;
+      const serverRedemption = data?.redemption ?? null;
+
+      if (serverRedemption) {
+        // Use server-provided redemption and availablePoints when present
+        setLastRedemption(serverRedemption);
         setShowRewardModal(true);
-        setAvailablePoints(localAfter);
-      } catch (e) {}
+        const computedAvailable = (serverAvailable !== null && !Number.isNaN(serverAvailable)) ? serverAvailable : Math.max(0, preClaimPoints - (serverRedemption.cost || 0));
+        setAvailablePoints(computedAvailable);
 
-  // Call server shake endpoint with chosen reward payload (update UI when server responds)
-  const data = await gameApi.shake(email, payload);
-  console.log('Shake response', data);
-
-  // Determine server-provided values (if any) and update UI deterministically
-  const serverAvailable = (typeof data?.availablePoints !== 'undefined' && data?.availablePoints !== null) ? Number(data.availablePoints) : null;
-  const serverRedemption = data?.redemption ?? null;
-  const finalRedemption = serverRedemption || redemptionFallback;
-  // Prefer authoritative server value when available, otherwise use optimistic pre-claim math
-  const computedAvailable = (serverAvailable !== null && !Number.isNaN(serverAvailable)) ? serverAvailable : Math.max(0, preClaimPoints - (finalRedemption.cost || 0));
-  setAvailablePoints(computedAvailable);
-
-      // Persist the claim result so other pages/components can react
-      let resultObj = null;
-      try {
-        resultObj = {
+        // Persist the claim result so other pages/components can react
+        const resultObj = {
           email,
-          pointsClaimed: finalRedemption.cost || data.pointsClaimed || 0,
-          availablePoints: (typeof computedAvailable !== 'undefined' && computedAvailable !== null) ? computedAvailable : (serverAvailable != null ? serverAvailable : Math.max(0, (availablePoints || 0) - (finalRedemption.cost || 0)) ),
+          pointsClaimed: serverRedemption.cost || data.pointsClaimed || 0,
+          availablePoints: computedAvailable,
           newTotalPoints: data.newTotalPoints || data.points || null,
           raw: data,
-          redemption: finalRedemption,
+          redemption: serverRedemption,
           timestamp: Date.now()
         };
         try { localStorage.setItem('lastClaimResult', JSON.stringify(resultObj)); } catch (e) {}
 
-        // Re-fetch reward definitions from server to ensure the UI shows the admin-provided list
+        // Re-fetch reward definitions to ensure UI uses server-provided list (non-blocking)
         try {
           const fresh = await gameApi.getRewardDefinitions();
           if (fresh && fresh.rewards) setRewardDefs(fresh.rewards);
         } catch (e) { /* ignore */ }
-      } catch (e) {}
 
-      // Notify other components and include the redemption object so they can show the reward tier immediately
-      try {
-        const payloadEvent = resultObj || Object.assign({}, data || {}, { redemption: finalRedemption });
-        window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: payloadEvent, popupShown: true } }));
-      } catch(e) {}
-
-      // Update modal contents with server redemption (keep optimistic fallback if server missing)
-      setLastRedemption(finalRedemption);
-      // show toast with reward info when available — prefer redemption fields
-      try {
-        if ((data && data.redemption && data.redemption.ok) || (finalRedemption && finalRedemption.ok)) {
-          const r = (data && data.redemption) || finalRedemption;
-          const title = (r.rewardDef && (r.rewardDef.title || r.rewardDef.name)) || (r.claim && r.claim.title) || '';
-          const cost = r.cost != null ? r.cost : (r.rewardDef && (r.rewardDef.cost ?? r.rewardDef.points)) || 0;
-          const newTotal = r.newPoints != null ? r.newPoints : ((data && (data.newTotalPoints ?? data.points)) ?? '–');
-          // Use reward modal for redeemed info; no numeric toast
-        } else {
-          const rewardLabel = data && (data.reward || data.rewardName) || '';
-          // Use reward modal for redeemed info; no numeric toast
-        }
-      } catch (e) {}
+        // Notify other components and indicate a popup was shown
+        try {
+          window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: resultObj, popupShown: true } }));
+        } catch (e) {}
+      } else {
+        // No redemption returned — update points if server provided them, otherwise keep optimistic state
+        if (serverAvailable !== null) setAvailablePoints(serverAvailable);
+        // don't show a modal if server didn't provide a redemption
+        setShowRewardModal(false);
+        console.warn('Server did not return a redemption for shake', data);
+      }
 
     } catch (err) {
       console.error('claim failed (server) — no local fallback. Error:', err);
-      try { showToast('❌ Claim Failed', 'Could not contact server to claim points. Please try again later.'); } catch (e) {}
+      try { setToast({ visible: true, title: '❌ Claim Failed', body: 'Could not contact server to claim points. Please try again later.' }); } catch (e) {}
     } finally {
       // Always refresh server state (if available) and stop the claiming state
       // Do not force-refresh here — prefer event-driven updates so local decrements aren't immediately overwritten
