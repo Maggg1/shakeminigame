@@ -304,7 +304,17 @@ export default function ShakePage() {
         // Use server-provided redemption and availablePoints when present
         setLastRedemption(serverRedemption);
         setShowRewardModal(true);
-        const computedAvailable = (serverAvailable !== null && !Number.isNaN(serverAvailable)) ? serverAvailable : Math.max(0, preClaimPoints - (serverRedemption.cost || 0));
+        // Try to infer how many points were consumed: serverAvailable preferred, then redemption.cost, then data.pointsClaimed, otherwise fall back to deducting 1 point
+        const claimedFromRedemption = (serverRedemption && (Number(serverRedemption.cost) || Number(serverRedemption.pointsClaimed))) || null;
+        const claimedFromData = (typeof data?.pointsClaimed !== 'undefined' && data.pointsClaimed !== null) ? Number(data.pointsClaimed) : null;
+        const inferredClaim = (serverAvailable !== null && !Number.isNaN(Number(serverAvailable)))
+          ? null
+          : (Number.isFinite(Number(claimedFromRedemption)) ? Number(claimedFromRedemption) : (Number.isFinite(Number(claimedFromData)) ? Number(claimedFromData) : 1));
+
+        const computedAvailable = (serverAvailable !== null && !Number.isNaN(Number(serverAvailable)))
+          ? Number(serverAvailable)
+          : Math.max(0, Number(preClaimPoints || 0) - Number(inferredClaim || 0));
+
         setAvailablePoints(computedAvailable);
 
         // Persist the claim result so other pages/components can react
@@ -330,8 +340,14 @@ export default function ShakePage() {
           window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: resultObj, popupShown: true } }));
         } catch (e) {}
       } else {
-        // No redemption returned — update points if server provided them, otherwise keep optimistic state
-        if (serverAvailable !== null) setAvailablePoints(serverAvailable);
+        // No redemption returned — update points if server provided them, otherwise fallback to optimistic decrement
+        if (serverAvailable !== null && !Number.isNaN(Number(serverAvailable))) {
+          setAvailablePoints(Number(serverAvailable));
+        } else {
+          // fallback: if server didn't confirm, decrement locally by 1 (or use data.pointsClaimed if present)
+          const claimed = (typeof data?.pointsClaimed !== 'undefined' && data.pointsClaimed !== null) ? Number(data.pointsClaimed) : 1;
+          setAvailablePoints(prev => Math.max(0, (Number(prev) || 0) - Number(claimed)));
+        }
         // don't show a modal if server didn't provide a redemption
         setShowRewardModal(false);
         console.warn('Server did not return a redemption for shake', data);
