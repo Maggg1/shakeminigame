@@ -427,10 +427,10 @@ body.light-theme .shake-section {
 }
 
 .phone-icon-large-image {
-  /* rectangular bounding box: wider than tall so the walrus appears in a landscape frame */
-  width: clamp(64px, 24vw, 180px); /* make wider */
-  height: clamp(28px, 8vw, 72px);  /* shorter height to create rectangle */
-  max-height: 72px;
+  /* rectangular bounding box: responsive and wider than tall */
+  width: clamp(56px, 22vw, 160px);
+  height: clamp(28px, 8vw, 72px);
+  max-height: 96px;
   display: block;
   margin: 0 auto 8px auto;
   object-fit: contain; /* preserve image aspect and show full walrus inside rectangle */

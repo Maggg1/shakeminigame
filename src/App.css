@@ -105,7 +105,6 @@ body.light-theme .app-header {
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  width: clamp(40px, 10vw, 88px);
   height: auto;
   display: block;
   background: transparent;
@@ -247,5 +246,12 @@ body.light-theme .logout-btn:hover {
 
 /* Ensure other components can override .walrus-header-img if needed; defaults removed to avoid conflicts */
 .walrus-header-img {
+  /* Global responsive default for walrus icon used across pages */
   display: inline-block;
+  width: clamp(36px, 6vw, 96px);
+  height: auto;
+  max-height: 96px;
+  object-fit: contain;
+  background: transparent;
+  box-shadow: none;
 }
