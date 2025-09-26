@@ -22,15 +22,30 @@ export const ThemeProvider = ({ children }) => {
   }, []);
 
   // Save theme preference to localStorage whenever it changes
+  // and apply the corresponding body class without clobbering other classes.
   useEffect(() => {
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-    
-    // Apply theme class to body - using the correct class names
-    if (isDarkMode) {
-      document.body.className = 'dark-theme';
-    } else {
-      document.body.className = 'light-theme';
+    const themeValue = isDarkMode ? 'dark' : 'light';
+    try { localStorage.setItem('theme', themeValue); } catch(e) {}
+
+    try {
+      // Use classList to avoid overwriting any other body classes
+      document.body.classList.remove(isDarkMode ? 'light-theme' : 'dark-theme');
+      document.body.classList.add(isDarkMode ? 'dark-theme' : 'light-theme');
+    } catch (e) {
+      try { document.body.className = isDarkMode ? 'dark-theme' : 'light-theme'; } catch(e) {}
     }
+
+    // Listen for storage events to sync theme across tabs/windows
+    const onStorage = (ev) => {
+      if (!ev.key) return;
+      if (ev.key === 'theme') {
+        const newVal = ev.newValue;
+        if (newVal === 'dark') setIsDarkMode(true);
+        if (newVal === 'light') setIsDarkMode(false);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, [isDarkMode]);
 
   const toggleTheme = () => {

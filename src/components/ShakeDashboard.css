@@ -426,6 +426,13 @@ body.light-theme .shake-section {
   filter: drop-shadow(0 0 20px rgba(0, 212, 255, 0.5));
 }
 
+.phone-icon-large-image {
+  width: clamp(48px, 10vw, 96px);
+  height: auto;
+  display: block;
+  margin: 0 auto 8px auto;
+}
+
 .phone-icon.shaking {
   animation: shake 0.5s ease-in-out infinite;
 }

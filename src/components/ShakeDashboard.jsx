@@ -598,12 +598,12 @@ export const ShakeDashboard = ({ phoneNumber }) => {
                   return (
                     <div className="history-item" key={a.id || idx}>
                       <div className="history-info">
-                        <div className="shake-number">{rewardTitle}</div>
+                        <div className="shake-number">{rewardTitle}{cost ? ` — ${cost} pts` : ''}</div>
                         <div className="shake-time">{timeLabel}</div>
                       </div>
                       <div className="history-reward">
-                        <div className="reward-amount">{rewardTitle}</div>
-                        <div className="trade-details">{cost ? `${cost} pts` : ''}</div>
+                        <div className="reward-amount">{a.type || ''}</div>
+                        <div className="trade-details">{a.details && a.details.reason ? a.details.reason : ''}</div>
                       </div>
                     </div>
                   );

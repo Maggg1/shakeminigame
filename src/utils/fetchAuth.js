@@ -1,5 +1,7 @@
 import { getIdToken } from '../services/auth';
 
+const BACKEND_BASE = 'https://minigamebackend.onrender.com';
+
 // fetchAuth: performs fetch with credentials included, attaches Authorization Bearer token
 // obtained from Firebase (via getIdToken) or localStorage fallback. Retries once on 401 by
 // forcing a token refresh.
@@ -16,13 +18,19 @@ export default async function fetchAuth(url, opts = {}, timeoutMs = 7000) {
       } catch (e) {
         token = null;
       }
-      if (!token) token = localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token');
+  if (!token) token = localStorage.getItem('authToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('userToken');
 
       const headers = Object.assign({}, opts.headers || {});
       if (token) headers['Authorization'] = `Bearer ${token}`;
       if (!headers['Content-Type'] && !(opts && opts.body)) headers['Content-Type'] = 'application/json';
 
-      const res = await fetch(url, { signal, ...opts, headers, credentials: opts.credentials ?? 'include' });
+      // If a relative path is passed (starts with '/'), resolve it against BACKEND_BASE
+      let fetchUrl = url;
+      try {
+        if (typeof url === 'string' && url.startsWith('/')) fetchUrl = BACKEND_BASE.replace(/\/$/, '') + url;
+      } catch (e) {}
+
+      const res = await fetch(fetchUrl, { signal, ...opts, headers, credentials: opts.credentials ?? 'include' });
       const text = await res.text().catch(() => '');
       let json = null;
       try { json = text ? JSON.parse(text) : null; } catch (e) { /* ignore parse error */ }

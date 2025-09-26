@@ -1,5 +1,6 @@
 import React from 'react';
 import './App.css';
+import walrusImg from './assets/walrus.png';
 import { useAuth } from './hooks/useAuth';
 import { EmailLogin } from './components/EmailLogin';
 import { ShakeDashboard } from './components/ShakeDashboard';
@@ -48,12 +49,13 @@ function App() {
         <header className="app-header">
           <div className="header-content">
             <div className="app-title">
-              <h1>📱 Shake Rewards</h1>
-              <p className="subtitle">Shake to earn coins daily!</p>
+              <h1><img src={walrusImg} alt="walrus" className="walrus-header-img" /> Shake Rewards</h1>
+              <p className="subtitle">{(typeof getDisplayName === 'function' && getDisplayName()) ? <span className="user-display-name">{getDisplayName()}</span> : email}</p>
             </div>
             <div className="user-info">
               <div className="user-details">
-                <span className="phone-display">� {email}</span>
+                {/* show a visible badge for the logged-in user (always on top) */}
+                <div className="user-badge">{(typeof getDisplayName === 'function' && getDisplayName()) || email}</div>
                 <div className="header-controls">
                   <ThemeToggle />
                   <button 

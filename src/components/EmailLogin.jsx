@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './EmailLogin.css';
+import walrusImg from '../assets/walrus.png';
 import { sendVerificationCode, verifyCode, signInWithEmail, signInWithGoogle, handleRedirectResult } from '../services/auth';
 
 /**
@@ -225,20 +226,11 @@ export const EmailLogin = ({ onLoginSuccess }) => {
   return (
     <div className="phone-login">
       <div className="login-container">
-        {/* Development Mode Banner */}
-        <div className="dev-banner">
-          <div className="dev-banner-content">
-            <span className="dev-icon">📧</span>
-            <div className="dev-text">
-              <strong>Email Verification</strong>
-              {devCode && <p>Dev Code: <code>{devCode}</code></p>}
-            </div>
-          </div>
-        </div>
+        {/* Development Mode Banner removed per request */}
         
   <div className="login-header">
           <div className="logo-section">
-            <span className="logo-icon">📈</span>
+            <img src={walrusImg} alt="walrus" className="walrus-header-img" />
             <h1 className="app-title">Shake Point</h1>
           </div>
           <p className="login-subtitle">

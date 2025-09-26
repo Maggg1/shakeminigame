@@ -7,6 +7,8 @@ html, body, #root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #16213e 100%);
   color: #ffffff;
+  /* default app text variable (dark mode) */
+  --app-text: #ffffff;
   transition: background 0.3s ease, color 0.3s ease;
 }
 
@@ -14,6 +16,25 @@ html, body, #root {
 body.light-theme {
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%);
   color: #1e293b;
+  --app-text: #1e293b;
+}
+
+body.dark-theme {
+  --app-text: #ffffff;
+}
+
+/* user display name styling (contrasting color) */
+.user-display-name {
+  color: var(--user-text, var(--app-text));
+  font-weight: 600;
+}
+
+/* default and light-theme overrides for user text variable */
+:root {
+  --user-text: rgba(255, 255, 255, 0.95);
+}
+body.light-theme {
+  --user-text: rgba(30, 41, 59, 0.95);
 }
 
 *, *::before, *::after {
@@ -83,14 +104,12 @@ body.light-theme .app-title h1 {
 }
 
 .subtitle {
-  margin: 4px 0 0;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.7);
-  transition: color 0.3s ease;
-}
-
-body.light-theme .subtitle {
-  color: rgba(30, 41, 59, 0.7);
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  font-weight: 400; /* lighter weight than the title */
+  color: var(--app-text);
+  transition: color 0.25s ease, opacity 0.25s ease;
+  opacity: 0.95;
 }
 
 /* === User Info === */
@@ -113,14 +132,30 @@ body.light-theme .subtitle {
   gap: 8px;
 }
 
+.user-badge {
+  background: rgba(255,255,255,0.08);
+  color: var(--app-text);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  z-index: 50;
+}
+
+body.light-theme .user-badge {
+  background: rgba(0,0,0,0.06);
+  color: var(--app-text);
+}
+
 .phone-display {
   font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--app-text);
   transition: color 0.3s ease;
 }
 
 body.light-theme .phone-display {
-  color: rgba(30, 41, 59, 0.8);
+  color: var(--app-text);
 }
 
 /* === Button === */
@@ -177,4 +212,11 @@ body.light-theme .logout-btn:hover {
   .phone-display {
     font-size: 0.9rem;
   }
+}
+
+/* Walrus header image sizing - preserve original colors */
+.walrus-header-img {
+  width: 1.7em;
+  height: 1.2em;
+  vertical-align: -0.15em;
 }

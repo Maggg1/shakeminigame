@@ -3,7 +3,12 @@ const API_BASE = (window.API_BASE || window.VITE_API_BASE || (typeof window !== 
 
 async function getRewardDefinitions() {
   try {
-    const res = await fetch(API_BASE + '/rewards/definitions', { credentials: 'include' });
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+      const token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch (e) {}
+    const res = await fetch(API_BASE + '/rewards/definitions', { headers, credentials: 'include' });
     return await res.json();
   } catch (e) {
     // Network failed (server down or CORS). Provide a small local fallback so the UI can still show a reward table.
@@ -24,6 +29,10 @@ async function getRewardDefinitions() {
 async function shake(email, options = {}) {
   const body = Object.assign({ email }, (options && typeof options === 'object') ? options : {});
   const headers = { 'Content-Type': 'application/json' };
+  try {
+    const token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  } catch (e) {}
   const res = await fetch(API_BASE + '/shake', { method: 'POST', headers, body: JSON.stringify(body), credentials: 'include' });
   return await res.json();
 }
