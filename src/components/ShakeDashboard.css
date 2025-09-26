@@ -427,10 +427,13 @@ body.light-theme .shake-section {
 }
 
 .phone-icon-large-image {
-  width: clamp(48px, 10vw, 96px);
+  /* reduce default size so the walrus is fully visible on small screens */
+  width: clamp(36px, 8vw, 72px);
   height: auto;
+  max-height: 72px;
   display: block;
   margin: 0 auto 8px auto;
+  object-fit: contain;
 }
 
 .phone-icon.shaking {
