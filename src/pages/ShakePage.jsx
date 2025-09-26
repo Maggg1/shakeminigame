@@ -461,7 +461,12 @@ export default function ShakePage() {
           <div style={{ marginTop: 6, fontSize: 16, color: '#444' }}>{availablePoints > 0 ? 'Ready to claim' : 'No points available'}</div>
         </div>
 
-  <div className={`interactive-phone ${isAnimatingShake ? 'shaking' : ''}`} onClick={() => { if (!isShaking && !isAnimatingShake) { startShakeSequence(); } }}>
+  <div
+    className={`interactive-phone ${isAnimatingShake ? 'shaking' : ''} ${availablePoints > 0 ? '' : 'disabled'}`}
+    onClick={() => { if (availablePoints > 0 && !isShaking && !isAnimatingShake) { startShakeSequence(); } }}
+    role="button"
+    aria-disabled={availablePoints <= 0}
+  >
     <img src={walrusImg} alt="walrus" className="phone-icon-large-image" />
           <div className="tap-hint">{isShaking ? 'Claiming...' : (availablePoints > 0 ? `Ready: ${availablePoints} pts` : 'No points available')}</div>
         </div>
