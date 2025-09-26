@@ -37,6 +37,24 @@ async function shake(email, options = {}) {
   return await res.json();
 }
 
+// Claim points endpoint (server should persist available -> claimed/total)
+// If the backend does not expose /claim, this will likely return 404 and callers should fallback.
+async function claimPoints(email, points = 0) {
+  try {
+    const body = { email, points };
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+      const token = localStorage.getItem('userToken') || localStorage.getItem('emailAuth_token') || localStorage.getItem('authToken');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch (e) {}
+    const res = await fetch(API_BASE + '/claim', { method: 'POST', headers, body: JSON.stringify(body), credentials: 'include' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
 export default {
   getRewardDefinitions,
   shake

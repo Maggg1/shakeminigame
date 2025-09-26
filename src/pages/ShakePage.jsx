@@ -30,6 +30,7 @@ export default function ShakePage() {
   const shakeTimeoutRef = useRef(null);
   const shakeAudioRef = useRef(null);
   const animatingFlagRef = useRef(false);
+  const lastShakeAtRef = useRef(0);
   // audio removed: vocal-warble shake SFX disabled per request
   const audioPlayingRef = useRef(false);
   const startSeqIdRef = useRef(0);
@@ -70,8 +71,27 @@ export default function ShakePage() {
           const available = data.availablePoints ?? data.available ?? data.unclaimed ?? data.points ?? 0;
           const total = (data.totalPoints ?? data.total ?? (data.user && data.user.totalPoints)) ?? 0;
           const lifetime = (data.lifetimeEarned ?? data.totalEarned ?? (data.user && data.user.lifetimeEarned) ?? total) || 0;
-          setAvailablePoints(Number(available) || 0);
-          setTotalPoints(Number(total) || 0);
+          const availNum = Number(available) || 0;
+          const totalNum = Number(total) || 0;
+          setAvailablePoints(availNum);
+          setTotalPoints(totalNum);
+          // Auto-claim available points if any: prefer server /claim endpoint, otherwise do optimistic local claim
+          if (availNum > 0) {
+            try {
+              const claimRes = await gameApi.claimPoints(email, availNum);
+              if (claimRes && claimRes.availablePoints != null) {
+                // server confirmed claim
+                setAvailablePoints(Number(claimRes.availablePoints) || 0);
+                setTotalPoints(Number(claimRes.totalPoints) || totalNum);
+              } else {
+                // fallback: optimistic local claim
+                setTotalPoints(prev => Number(prev || 0) + availNum);
+                setAvailablePoints(0);
+              }
+            } catch (e) {
+              // ignore claim failure; keep what we fetched
+            }
+          }
           setLifetimeEarned(Number(lifetime) || 0);
           setLastUpdated(new Date());
         }
@@ -176,7 +196,9 @@ export default function ShakePage() {
       const dz = Math.abs(z - lastAccel.current.z || 0);
       lastAccel.current = { x, y, z };
       const magnitude = Math.sqrt(dx*dx + dy*dy + dz*dz);
-      if (magnitude > SHAKE_THRESHOLD && availablePoints > 0 && !isShaking && !isAnimatingShake) {
+      const now = Date.now();
+      const cooldown = 2000; // ms
+      if (magnitude > SHAKE_THRESHOLD && availablePoints > 0 && !isShaking && !isAnimatingShake && !animatingFlagRef.current && (now - lastShakeAtRef.current > cooldown)) {
         startShakeSequence();
       }
     };
@@ -246,6 +268,8 @@ export default function ShakePage() {
   const triggerClaim = async () => {
     setIsShaking(true);
     try {
+      // capture pre-claim points so we don't read state after an async setState
+      const preClaimPoints = Number(availablePoints || 0);
       // Choose a reward locally first (so we can send a meaningful request to the backend)
       const chooseReward = (points) => {
         const n = Number(points) || 0;
@@ -302,31 +326,13 @@ export default function ShakePage() {
   const data = await gameApi.shake(email, payload);
   console.log('Shake response', data);
 
-  // Determine server-provided values (if any)
-  const serverAvailable = data?.availablePoints ?? data?.points ?? null;
+  // Determine server-provided values (if any) and update UI deterministically
+  const serverAvailable = (typeof data?.availablePoints !== 'undefined' && data?.availablePoints !== null) ? Number(data.availablePoints) : null;
   const serverRedemption = data?.redemption ?? null;
-
-      // Final redemption: prefer server's redemption when present
-      const finalRedemption = serverRedemption || redemptionFallback;
-
-      // Decide authoritative available points for UI: prefer server if it reflects a decrement,
-      // otherwise keep the local decrement we already displayed.
-      let computedAvailable = null;
-      try {
-        const serverVal = (typeof serverAvailable !== 'undefined' && serverAvailable !== null) ? Number(serverAvailable) : null;
-        const before = Number(availablePoints || 0);
-        const localAfter = Math.max(0, before);
-        if (serverVal !== null && !Number.isNaN(serverVal) && serverVal < (before + (finalRedemption.cost || 0))) {
-          // server reports a lower value than pre-claim, trust it
-          computedAvailable = serverVal;
-        } else {
-          // keep the local after we already set
-          computedAvailable = localAfter;
-        }
-      } catch (e) {
-        computedAvailable = Number(availablePoints || 0);
-      }
-      setAvailablePoints(computedAvailable);
+  const finalRedemption = serverRedemption || redemptionFallback;
+  // Prefer authoritative server value when available, otherwise use optimistic pre-claim math
+  const computedAvailable = (serverAvailable !== null && !Number.isNaN(serverAvailable)) ? serverAvailable : Math.max(0, preClaimPoints - (finalRedemption.cost || 0));
+  setAvailablePoints(computedAvailable);
 
       // Persist the claim result so other pages/components can react
       let resultObj = null;
@@ -355,12 +361,8 @@ export default function ShakePage() {
         window.dispatchEvent(new CustomEvent('pointsUpdated', { detail: { email, result: payloadEvent, popupShown: true } }));
       } catch(e) {}
 
-      // Show final redemption details if present (update modal contents)
-      if (finalRedemption) {
-        setLastRedemption(finalRedemption);
-      } else {
-        setLastRedemption(null);
-      }
+      // Update modal contents with server redemption (keep optimistic fallback if server missing)
+      setLastRedemption(finalRedemption);
       // show toast with reward info when available — prefer redemption fields
       try {
         if ((data && data.redemption && data.redemption.ok) || (finalRedemption && finalRedemption.ok)) {
@@ -388,6 +390,8 @@ export default function ShakePage() {
   // Start a 3s shake animation/audio sequence and then perform claim
   const startShakeSequence = () => {
     if (isShaking || isAnimatingShake || animatingFlagRef.current) return;
+    // record the time so a short cooldown prevents duplicates
+    try { lastShakeAtRef.current = Date.now(); } catch (e) {}
     // set a synchronous lock so concurrent calls can't race
     animatingFlagRef.current = true;
     setIsAnimatingShake(true);
@@ -463,7 +467,13 @@ export default function ShakePage() {
 
   <div
     className={`interactive-phone ${isAnimatingShake ? 'shaking' : ''} ${availablePoints > 0 ? '' : 'disabled'}`}
-    onClick={() => { if (availablePoints > 0 && !isShaking && !isAnimatingShake) { startShakeSequence(); } }}
+    onClick={() => {
+      const now = Date.now();
+      const cooldown = 2000;
+      if (availablePoints > 0 && !isShaking && !isAnimatingShake && !animatingFlagRef.current && (now - lastShakeAtRef.current > cooldown)) {
+        startShakeSequence();
+      }
+    }}
     role="button"
     aria-disabled={availablePoints <= 0}
   >
