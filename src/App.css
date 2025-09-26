@@ -94,6 +94,20 @@ body.light-theme .app-header {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   transition: all 0.3s ease;
+  position: relative;
+  padding-top: clamp(40px, 8vw, 72px); /* make room for the walrus placed above */
+}
+
+.app-title h1 .walrus-header-img {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(40px, 10vw, 88px);
+  height: auto;
+  display: block;
+  background: transparent;
+  box-shadow: none;
 }
 
 body.light-theme .app-title h1 {
@@ -214,9 +228,7 @@ body.light-theme .logout-btn:hover {
   }
 }
 
-/* Walrus header image sizing - preserve original colors */
+/* Ensure other components can override .walrus-header-img if needed; defaults removed to avoid conflicts */
 .walrus-header-img {
-  width: 1.7em;
-  height: 1.2em;
-  vertical-align: -0.15em;
+  display: inline-block;
 }
