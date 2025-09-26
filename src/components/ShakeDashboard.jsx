@@ -502,15 +502,7 @@ export const ShakeDashboard = ({ phoneNumber }) => {
                   </div>
                 ))
               ) : (
-                <div className="help-rewards-fallback">
-                  <p style={{ marginTop: 0 }}>No rewards configured by admin. Showing default rewards:</p>
-                  {rewardLadder.map((r, i) => (
-                    <div className="help-reward-item" key={`fallback-${i}`}>
-                      <div className="help-reward-points">{r.points} pts</div>
-                      <div className="help-reward-name">{r.reward}</div>
-                    </div>
-                  ))}
-                </div>
+                <div>No rewards configured by admin.</div>
               )}
             </div>
             <p className="help-note">Tip: Ensure your admin has defined rewards on the backend to control what users can redeem.</p>
@@ -571,23 +563,6 @@ export const ShakeDashboard = ({ phoneNumber }) => {
           <div style={{ textAlign: 'center', marginTop: 8 }}>
             <a href="#/shake" className="open-shake-page">Open Shake Page</a>
           </div>
-        </div>
-      </div>
-
-      {/* Available rewards preview: show admin-defined rewards or local fallback ladder */}
-      <div className="rewards-preview">
-        <h3>🎁 Available Rewards</h3>
-        <div className="rewards-list">
-          {(rewardDefs && rewardDefs.length > 0 ? rewardDefs : rewardLadder).map((r, idx) => {
-            const cost = Number(r.pointsRequired ?? r.cost ?? r.points ?? r.points) || 0;
-            return (
-              <div key={r.id || r.points || idx} className="reward-item">
-                <div className="reward-name">{r.title || r.reward || r.name || (r.reward || '')}</div>
-                <div className="reward-cost">{cost} pts</div>
-                <div className="reward-available">{availablePoints >= cost ? 'Available' : `Need ${Math.max(0, cost - availablePoints)} pts`}</div>
-              </div>
-            );
-          })}
         </div>
       </div>
 

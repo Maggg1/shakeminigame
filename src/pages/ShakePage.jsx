@@ -26,38 +26,6 @@ export default function ShakePage() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [lifetimeEarned, setLifetimeEarned] = useState(0);
   const [nextRewardPoints, setNextRewardPoints] = useState(null);
-  const lastAccel = useRef({ x: null, y: null, z: null });
-  const shakeTimeoutRef = useRef(null);
-  const shakeAudioRef = useRef(null);
-  const animatingFlagRef = useRef(false);
-  const lastShakeAtRef = useRef(0);
-  // audio removed: vocal-warble shake SFX disabled per request
-  const audioPlayingRef = useRef(false);
-  const startSeqIdRef = useRef(0);
-  const [isAnimatingShake, setIsAnimatingShake] = useState(false);
-
-  // On mount, consume any recent claim result saved by the claim flow
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('lastClaimResult');
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (!parsed) return;
-      // Only show if it matches this user and is recent (2 minutes)
-      if (parsed.email === email && (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 1000)) {
-        // Update available points and show reward popup (no numeric "points claimed" display)
-        setAvailablePoints(parsed.availablePoints || 0);
-        try {
-          const remaining = parsed.availablePoints || 0;
-          const rewardLabel = parsed.reward || parsed.rewardName || (parsed.rewards && parsed.rewards[0] && (parsed.rewards[0].name || parsed.rewards[0].label)) || parsed.prize || (parsed.raw && (parsed.raw.reward || parsed.raw.prize || parsed.raw.name)) || '';
-          // reward popup/modal will show redeemed info; no numeric points toast
-        } catch (e) {}
-      }
-      // Clear it so the popup doesn't repeat on subsequent mounts
-      localStorage.removeItem('lastClaimResult');
-    } catch (e) {}
-  }, []);
-
   useEffect(() => {
     // Fetch available points
     const fetchPoints = async () => {
