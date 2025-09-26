@@ -206,41 +206,56 @@ export default function ShakePage() {
     };
 
     // Modern iOS requires a user gesture to call DeviceMotionEvent.requestPermission().
-    // We avoid a visible button by requesting permission on the first touch/click anywhere on the page.
-    // This keeps the UX unobtrusive while still satisfying the browser requirement.
-    const tryEnableMotionViaGesture = () => {
+    // We'll request permission in a direct user-gesture handler (pointerdown / touchend / click)
+    // so the browser treats it as a valid gesture without adding any visible UI.
+    let gestureListenerAdded = false;
+
+    const gestureHandler = (ev) => {
       try {
         if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
-          window.DeviceMotionEvent.requestPermission().then(resp => {
-            if (resp === 'granted') {
-              try { window.addEventListener('devicemotion', handleMotion); } catch (e) {}
+          // Call requestPermission directly inside the user gesture handler so it runs on the
+          // same gesture stack. Some browsers require this to consider it a user-initiated action.
+          try {
+            const p = window.DeviceMotionEvent.requestPermission();
+            // requestPermission returns a promise; initiating the call inside this handler
+            // is the important part — the promise resolution can be handled asynchronously.
+            if (p && typeof p.then === 'function') {
+              p.then((resp) => {
+                if (resp === 'granted') {
+                  try { window.addEventListener('devicemotion', handleMotion); } catch (e) {}
+                }
+              }).catch(() => {});
             }
-          }).catch(() => {
-            // user denied or permission unavailable
-          });
+          } catch (e) {
+            // some browsers may throw when calling requestPermission without a gesture
+          }
         }
-      } catch (e) {
-        // some browsers may throw when calling requestPermission without a gesture
-      }
-    };
+      } catch (e) {}
 
-    // If the browser requires permission (iOS), listen once for the first user gesture.
-    let gestureListenerAdded = false;
-    const gestureHandler = () => {
-      tryEnableMotionViaGesture();
-      // remove the gesture listener after first use
-      document.removeEventListener('touchstart', gestureHandler);
-      document.removeEventListener('click', gestureHandler);
+      // remove the gesture listeners after first use
+      try { document.removeEventListener('pointerdown', gestureHandler); } catch(e) {}
+      try { document.removeEventListener('touchend', gestureHandler); } catch(e) {}
+      try { document.removeEventListener('click', gestureHandler); } catch(e) {}
       gestureListenerAdded = false;
     };
 
-  if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
-      // Add one-time gesture listeners — passive to avoid blocking scrolling.
-      document.addEventListener('touchstart', gestureHandler, { passive: true });
-      document.addEventListener('click', gestureHandler, { passive: true });
+    if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+      // Use non-passive listeners and include pointer/touchend for broader device support.
+      const opts = { passive: false };
+      document.addEventListener('pointerdown', gestureHandler, opts);
+      document.addEventListener('touchend', gestureHandler, opts);
+      document.addEventListener('click', gestureHandler, opts);
       gestureListenerAdded = true;
+
       // Also attempt to request right away in case permission was already granted by the OS/settings.
-      tryEnableMotionViaGesture();
+      try {
+        // If permission is already granted this will just add the listener synchronously.
+        if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+          // Note: calling requestPermission() here without a gesture may fail silently on some browsers,
+          // but that's harmless — the gesture handler will handle the interactive request.
+          try { window.DeviceMotionEvent.requestPermission().then((resp) => { if (resp === 'granted') { try { window.addEventListener('devicemotion', handleMotion); } catch(e){} } }).catch(()=>{}); } catch(e){}
+        }
+      } catch (e) {}
     } else if (window.DeviceMotionEvent) {
       // No permission API — attach directly.
       try { window.addEventListener('devicemotion', handleMotion); } catch (e) {}
@@ -249,7 +264,8 @@ export default function ShakePage() {
     return () => {
       try { window.removeEventListener('devicemotion', handleMotion); } catch (e) {}
       if (gestureListenerAdded) {
-        try { document.removeEventListener('touchstart', gestureHandler); } catch (e) {}
+        try { document.removeEventListener('pointerdown', gestureHandler); } catch (e) {}
+        try { document.removeEventListener('touchend', gestureHandler); } catch (e) {}
         try { document.removeEventListener('click', gestureHandler); } catch (e) {}
       }
       // cleanup any running shake timeout

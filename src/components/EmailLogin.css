@@ -230,7 +230,8 @@ body.light-theme .login-container {
   height: 64px;
   object-fit: cover;
   border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  background: transparent;
+  box-shadow: none;
   transform-origin: center;
   animation: walrusFloat 4s ease-in-out infinite;
 }
