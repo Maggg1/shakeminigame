@@ -75,23 +75,6 @@ export default function ShakePage() {
           const totalNum = Number(total) || 0;
           setAvailablePoints(availNum);
           setTotalPoints(totalNum);
-          // Auto-claim available points if any: prefer server /claim endpoint, otherwise do optimistic local claim
-          if (availNum > 0) {
-            try {
-              const claimRes = await gameApi.claimPoints(email, availNum);
-              if (claimRes && claimRes.availablePoints != null) {
-                // server confirmed claim
-                setAvailablePoints(Number(claimRes.availablePoints) || 0);
-                setTotalPoints(Number(claimRes.totalPoints) || totalNum);
-              } else {
-                // fallback: optimistic local claim
-                setTotalPoints(prev => Number(prev || 0) + availNum);
-                setAvailablePoints(0);
-              }
-            } catch (e) {
-              // ignore claim failure; keep what we fetched
-            }
-          }
           setLifetimeEarned(Number(lifetime) || 0);
           setLastUpdated(new Date());
         }
