@@ -90,6 +90,7 @@ export default function RewardModal({ open, onClose, redemption }) {
   );
 
   // If redemption is not provided yet, show a gentle in-progress fallback so users always see a modal while redeeming.
+  // Note: visual close controls were intentionally removed; the modal can still be dismissed with Escape for accessibility.
   return (
     <div className="rm-overlay">
       <div ref={modalRef} className="rm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
@@ -101,9 +102,7 @@ export default function RewardModal({ open, onClose, redemption }) {
           ) : (
             <p className="rm-desc">Redeeming your reward… this will be confirmed shortly.</p>
           )}
-          <div className="rm-actions">
-            <button className="rm-ok" onClick={onClose}>Close</button>
-          </div>
+          {/* Close buttons intentionally removed; keep Escape key to close */}
         </div>
       </div>
     </div>
